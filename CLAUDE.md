@@ -23,7 +23,7 @@ This repo extends the agent-harness skill (`~/.claude/skills/user/agent-harness`
 - **Database:** Supabase, own project. Postgres direct via `@supabase/supabase-js`. SQL migrations in `/supabase/migrations`, versioned.
 - **Auth:** Supabase Auth, magic link. Allowlist enforced via `allowed_users` table with `role in ('admin','member')`. RLS **disabled** in v0 because single-org logically.
 - **Email:** Resend SDK. Domain `solodesk.ai` verified at Resend (SPF/DKIM/DMARC).
-- **Styling:** Tailwind v4 + shadcn/ui primitives. Geist Sans + Geist Mono fonts.
+- **Styling:** Tailwind v4 with the SoloDesk palette (every shadcn primitive restyled). See `/.claude/design-system.md` — the design spec is authoritative for type, colour, layout, and interaction patterns. Söhne (or Inter as fallback) for type, never Geist. Phosphor "regular" weight icons only, never Lucide.
 - **Inference:** `@anthropic-ai/sdk` direct. Default model: `claude-opus-4-7`. Use `claude-haiku-4-5-20251001` for cheap classification.
 - **Embeddings:** Voyage AI, model `voyage-3` (1024 dims). Locked. Changing dimensions later means a full reembed across every row.
 - **Memory layer:** pgvector + the helper functions in `/lib/memory/recall.ts` and `/lib/agents/prompt.ts`. Every loop's prompt construction goes through `buildAgentPrompt` — never assemble prompts manually. See `/.claude/sprints/sprint-0.5-memory-layer.md` for the full spec; once it's built, this convention is non-negotiable.
@@ -146,6 +146,36 @@ Before any new SKILL.md ships:
 
 ---
 
+## Document and design conventions
+
+These rules are non-negotiable from Sprint 1 onwards. They make SoloDesk look like SoloDesk and not like every other Next.js project. See `/.claude/design-system.md` and `/.claude/decision-document-interface.md` for the full spec.
+
+### Design anti-patterns (hard prohibitions)
+
+- **No purple, no pink, no teal, no sienna, no warm cream paper.** The palette in `/.claude/design-system.md` is closed. Don't introduce new accent colours.
+- **No gradients.** Anywhere. Solid colours only.
+- **No drop shadows.** Borders only, where needed for hierarchy.
+- **No rounded corners except form inputs (4px) and modals (6px).** Square corners on cards, badges, buttons, documents.
+- **No emoji in UI chrome.** Not in button labels, not in empty states, not in error messages, not in status badges. The interface speaks like a precision tool, not a friend.
+- **No avatar circles.** Three-letter mono author tags (`tim`, `crt`, `agt`) instead.
+- **No motivational empty-state copy.** "No decisions in review." is the entire text. No "Let's get started!" button, no illustration.
+- **No icons on buttons.** Text-only. If the label is unclear, fix the label.
+- **No Geist font.** Söhne preferred (paid licence), Inter as fallback. System UI fallback only after that.
+- **No Lucide icons.** Phosphor "regular" weight only.
+- **No shadcn defaults.** Use shadcn for headless logic (Dialog, DropdownMenu, Tooltip, Command). Restyle every visual token. Slate-grey neutrals, rounded-md cards, soft shadows are all forbidden.
+- **No animated typing indicators, pulsing orbs, or "thinking..." reveals.** Loading is a static state — `Loading…` in `ink-mute` italic, no spinner.
+
+### Document anti-patterns (hard prohibitions)
+
+- **No agent writes a flat artifact directly.** Every loop output is a Document with typed Sections. The `decisions` and `artifacts` tables are the queryable record; the Document UI is the editing surface. A Document with `type=decision` writes to `decisions` only when its status flips to `approved`.
+- **No critic ships a global review note.** Comments anchor to specific Sections. Every critic comment must include an evidence pointer (memory hit, anti-pattern reference, prior decision id, external URL). "This feels off" with no pointer is auto-rejected by the critic rubric.
+- **No agent regenerates more than the Section it's responding to.** If an adjacent Section also needs change, the agent leaves a comment on that Section, doesn't edit it.
+- **No Document flips to `approved` while it has unresolved `agent_note` Sections.** Every elicitation must be confirmed, revised, or explicitly deferred — never silently approved through.
+- **No bulk-approve action without per-Section status updates.** "Approve all" can be one user click but the data model records each Section's approval individually for audit.
+- **No auto-send on any communication.** Send actions require an explicit user click. Approving a draft does not send it.
+
+---
+
 ## Definition of Done (universal)
 
 - [ ] All acceptance criteria in current SPRINT.md ticked, with proof
@@ -174,5 +204,10 @@ This section grows. When a session fails, document the mode here.
 - **Schema:** `/supabase/migrations`
 - **Skills:** `/.claude/skills`
 - **Loops:** `/.claude/loops`
+- **Design system (authoritative for all UI):** `/.claude/design-system.md`
+- **Document/Section/Comment interface spec:** `/.claude/decision-document-interface.md`
+- **Memory layer spec:** `/.claude/sprints/sprint-0.5-memory-layer.md`
 - **Agent harness skill (parent):** `~/.claude/skills/user/agent-harness/SKILL.md`
 - **TCOS architecture doc:** `/TCOS.md` (separate, in repo root)
+
+When working on UI, **read `/.claude/design-system.md` before writing any styles**. When working on agent output rendering, **read `/.claude/decision-document-interface.md` before writing any components**. These specs supersede convention and shadcn defaults.

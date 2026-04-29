@@ -90,10 +90,13 @@ solodesk/
 ├── COMPANY.template.md             # Per-venture COMPANY.md template
 ├── supabase/migrations/            # SQL migrations
 ├── .claude/
+│   ├── design-system.md            # Authoritative visual + interaction spec
+│   ├── decision-document-interface.md  # Document/Section/Comment primitive spec
 │   ├── skills/                     # Agent skill definitions (SKILL.md per skill)
 │   ├── loops/                      # Loop definitions (one md per loop)
 │   ├── rubrics/                    # Quality rubrics per loop/agent
-│   └── runbooks/                   # Operational procedures
+│   ├── runbooks/                   # Operational procedures
+│   └── sprints/                    # Pre-written future sprint specs
 ├── specs/                          # Feature specs (versioned)
 ├── dashboards/                     # SQL view definitions
 ├── content/                        # Marketing artifacts (Loop 4 outputs)
@@ -112,6 +115,10 @@ solodesk/
 - No cross-venture context contamination. Every agent invocation scopes to one venture.
 - No skill ships without an adversarial critic counterpart.
 - No loop ships without a budget (max tokens, max cost, max latency).
+- No agent constructs its own prompt — every invocation goes through `buildAgentPrompt()`.
+- No agent writes flat artifacts — every loop output is a Document with typed Sections (per `/.claude/decision-document-interface.md`).
+- No critic ships a global review note — comments anchor to specific Sections with evidence pointers.
+- No design defaults from shadcn or AI-startup convention. The palette, type, and layout grammar in `/.claude/design-system.md` is the law. No purple, no gradients, no soft shadows, no rounded cards, no Geist, no Lucide, no emoji in chrome.
 - Marketing landing stays minimal until there's something real to show — no public promotion of the waitlist before Sprint 4 at earliest.
 
 ## Decision: 1 November 2026 productise/don't gate
@@ -120,6 +127,7 @@ Binary call on whether SoloDesk goes from internal tool to productised SaaS. Dec
 
 - Has it survived 6 months without major rebuild?
 - Has the rubric library actually compounded (measurable: rejection rate of agent outputs at 4-6 weeks vs at month 5)?
+- Has the Section catalogue grown from the Sprint 1 starter kinds into a meaningful library specific to portfolio operation work? (This is the moat — agents commoditise, but a vertical-AI primitive doesn't.)
 - Is there at least one second design partner who'd pay $200/mo for it?
 - Has Anthropic shipped native features that make 60%+ of SoloDesk redundant?
 - Is the waitlist signal real (not vanity — actual conversations with signups confirming pain)?
