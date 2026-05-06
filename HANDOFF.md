@@ -1,139 +1,126 @@
-# Handoff: Planning update — incorporate AIOS-framework insights
+# Handoff: Sprint 0 verification + Sprint 1.0 design + Sprint 0.5 memory
 
 **Date:** 2026-05-06
 **Repo:** solodesk
-**Branch:** `main`
-**Session type:** Planning (spec/docs only — no implementation, no migration applied)
+**Branch:** `main` (head: `fd147f6`, all commits pushed to origin)
+**Session type:** Build (multi-sprint — Sprint 0 deploy verification, Sprint 1.0 design migration, Sprint 0.5 memory layer code)
 **Author:** Claude (Opus 4.7) under Tim's harness
-**Source:** AIOS-framework insights (Nate's portfolio operator stack — service-account pattern, scheduling discipline, portfolio-level audit, team inbound)
+
+Earlier session HANDOFFs in `.archive/handoffs/` (Sprint 0 build session 1; the AIOS planning update from earlier today).
 
 ---
 
-## Sprint 0 deploy verification status
+## Sprint 0 — Deploy verification
 
-Unchanged. Sprint 0 build session 1 HANDOFF moved to `.archive/handoffs/sprint-00-build-session-1.md` for the deploy verification session to reference. Deploy runbook remains at `.claude/runbooks/sprint-00-deploy-runbook.md`. Nothing in this planning session touches Sprint 0 scope.
+**Status:** Live, mostly green. One real bug isolated to your inbox config.
 
----
+| Verified ✅ | What |
+|---|---|
+| Vercel deploy | All recent commits READY (no ERROR states since env vars landed) |
+| DNS + SSL | `solodesk.ai`, `www.solodesk.ai`, `app.solodesk.ai` all resolving with TLS |
+| Hostname routing | All eight runbook §6 grid checks pass — including landing → 302 to `/`, app `/api/waitlist` → 404, app `/dashboard` → 302 to `/login` |
+| Webhook auth | Missing-secret + wrong-secret both → 401 |
+| Supabase reachable | Proxy `allowed_users` query succeeds on every authed request — implicit confirmation env vars are set, project is reachable, schema exists |
+| Waitlist contract | Fresh → 200 `{status:"ok"}`; duplicate → 200 `{status:"ok",duplicate:true}`; malformed → 400 `{error:"Invalid email"}` |
+| Resend pipeline | Diagnostic confirmed Resend → Migadu link is healthy. Test message `dc124f40-4e04-4527-abd1-d98627d587cc` reached `delivered` status at +20s — Migadu's MX returned 250 OK to the SMTP transaction |
 
-## What this session changed
+| Outstanding 📋 | Why you |
+|---|---|
+| **Email delivery to inbox** | Resend says delivered, Migadu accepted, but messages don't appear in `tim@`/`hello@` inboxes. Almost certainly Migadu spam quarantine (new sender reputation + `p=quarantine` DMARC) or Identity/alias routing. **Action: check Migadu Spam folder for `tim+claude-diag-resend-1778067936895@solodesk.ai` and `tim+claude-smoke-1778066721@solodesk.ai`. If found there, allowlist `hello@solodesk.ai`. If not, check Migadu Identity settings for plus-addressing on the `tim@` mailbox.** Resend dashboard for the message id above shows the literal SMTP banner Migadu returned. |
+| Magic-link round-trip | Submit `tim@solodesk.ai` on `/login`, click the link, land on `/dashboard`. Goes through Supabase Auth's separate SMTP path, not Resend. May surface its own SMTP issue. |
+| Lighthouse ≥ 90 on landing | Run from your browser. Sprint 1.0 just migrated styles, so re-run after viewing. |
+| Visual verification | Sprint 1.0 design migration is live but unreviewed — eyeball every page against `/.claude/design-system.md` |
+| Supabase 0001 + seed | If migration `0001_initial_schema.sql` and `seed.sql` aren't applied yet, do that via Studio SQL editor. The proxy works → strongly implies it's already applied, but worth confirming. |
 
-Five planning updates across the meta-docs. No app code, no migration applied, no implementation.
-
-### Change 1 — Loop portability bright line (CLAUDE.md)
-
-Added a new bright line to `CLAUDE.md` under Agent conventions / Anti-patterns (hard prohibitions):
-
-> **Loops are venture-portable.** A Loop is defined once and takes `ventureId` at runtime via `buildAgentPrompt()`. Venture-specific behaviour lives in venture-scoped Document context (COMPANY.md chunks, memories, prior Decisions, connections inventory) — never in the Loop or skill definition. Cross-venture comparison of Loop outcomes must remain architecturally possible at all times — that's the portfolio differentiator and the prerequisite for Loop 11 (portfolio audit).
-
-Rationale: existing rules ("no cross-venture context", "no agent constructs its own prompt") govern data flow but not Loop *definition* shape. Without the portability rule, nothing prevents `if (ventureId === 'kounta') { ... }` branches accumulating in skills until Loop 11 (portfolio audit) becomes architecturally impossible. Verified the rule doesn't contradict Sprint 0.5 (`buildAgentPrompt` already takes `ventureId` at runtime) or the document substrate spec (Section kinds are venture-agnostic).
-
-Verified the bright lines don't also live in `/.claude/decision-document-interface.md`. DDI carries section-scoped UX anti-patterns (Comments, Tables, Comment threads) and a "New constraints to add to CLAUDE.md" block; cross-cutting agent rules live in CLAUDE.md only. No DDI edit needed.
-
-Also added a parallel new bright line for cross-venture credential leakage (sister rule to the recall scope rule), pointing forward to the Sprint 1.3 substrate.
-
-### Change 2 — Connections layer (new Sprint 1.3)
-
-- New spec: `/.claude/sprints/sprint-1.3-connections-layer.md` — full sprint spec with rationale, scope, OOS, acceptance criteria, DOD, rubric, adversarial review prompt, build-session notes.
-- New migration: `supabase/migrations/0004_connections.sql` — **draft only, not applied**. Defines `connections` (id, venture_id, provider, display_name, vault_secret_id, scope_metadata, created_by, created_at, revoked_at) with an exclusion constraint guaranteeing one active connection per (venture, provider, display_name); plus `connection_audit` (connection_id, action, called_by_loop_id, called_at, request_summary, response_status). Encryption via Supabase Vault. RLS policy stubs commented out — v0 stays single-org.
-- ROADMAP.md updated: new Sprint 1.3 entry inserted between Sprint 1.2 and Sprint 2; top-of-file structure paragraph updated.
-- Single accessor pattern: every Loop fetches credentials through `getConnection({ ventureId, provider, loopRunId, requestSummary })`, which writes a `connection_audit` row before returning the credential. Audit-before-return ordering is enforced — audit insert failure fails the call.
-- Service-account discipline documented: encrypted payloads are always for service accounts at the provider, never the operator's personal credentials. Same logic as Nate's UpAI/ClickUp pattern.
-
-Position rationale: Sprint 2 (Loop 8) is the first Loop that needs external venture credentials (Stripe/Resend/Vercel/GitHub). Without the substrate, Sprint 2 ships a retrofittable shim that every subsequent Loop has to copy. Slotting 1.3 between 1.2 (decision document) and 2 (metrics digest) makes the bright line architecturally enforceable from day one of external integrations.
-
-### Change 3 — Generalise scheduling in Sprint 2
-
-- ROADMAP.md Sprint 2 retitled "Metrics digest + Loop scheduler substrate (Loop 8)". Explicit deliverable added: "general-purpose Loop scheduler — cron-style, venture-scoped, observable, reusable by any subsequent Loop." Loop 8 is named the first consumer; Loops 5 (weekly intel), 10 (Sunday retrospective digest), 11 (portfolio audit) listed as downstream consumers.
-- Sprint 5's existing "weekly Friday cron" wording was already neutral about whether it introduces or reuses a scheduler — left unchanged. Sprint 5 doesn't currently claim to introduce a scheduling primitive in the live ROADMAP; the brief's "Sprint 5's 'adds Table primitive + scheduling' becomes 'adds Table primitive'" referred to a draft state that's no longer present (Tables are introduced via the Document substrate in Sprint 1, not Sprint 5).
-- New stub: `/.claude/sprints/sprint-2-metrics-digest.md` — skeleton with hard dependencies (Sprints 0.5, 1.1, 1.3) and the substrate framing for the scheduler. Full SPRINT.md content authored when Sprint 1.3 is approved by the evaluator.
-
-### Change 4 — Loop 11 (portfolio audit) as Nov 1 gate item
-
-- ROADMAP.md "After Sprint 6" rewritten — Loop 11 added with full description (stale priorities, unused capabilities, missing connections, divergence findings; portfolio-scope Document output).
-- README.md productisation criteria gained: "Has Loop 11 (portfolio audit) shipped and run?" — described as gating the productise call. Without Loop 11, the "OS for portfolio operators" claim doesn't hold operationally; productise call defaults to "not yet."
-- New stub: `/.claude/sprints/sprint-7-portfolio-audit.md` — placeholder with hard dependencies, finding catalogue, and explicit bright-line preservation (Loop 11 is the deliberate exception to "no cross-venture context" but remains constrained: never mixes venture context windows; never decrypts credentials across ventures; aggregation happens at the data layer, not the prompt layer).
-
-### Change 5 — Team inbound surface as Nov 1 gate item
-
-- ROADMAP.md "After Sprint 6" entry includes team inbound — per-venture inbox via subdomain/recipient routing, role-gated visibility (`venture_members` table), reuses Resend pipeline and Corum-derived ingest patterns.
-- README.md productisation criteria gained: "Has the team-inbound surface shipped, with at least one teammate working a venture's inbox?" — also gates the productise call.
-- New stub: `/.claude/sprints/sprint-7-team-inbound.md` — placeholder with hard dependencies, deliverables, bright-line preservation (cross-venture leakage forbidden at server-action level, no relaxed recall scope, no unaudited send path).
+Diagnostic that resolved the email question (commit `47db345`/`86b3885`) was deployed, run, then reverted at `09c9f2e`. Repo is clean.
 
 ---
 
-## Files changed
+## Sprint 1.0 — Design migration
 
-```
-modified:
-  CLAUDE.md                                        new bright lines + pointer to 1.3 spec
-  README.md                                        productisation criteria — Loop 11 + team inbound
-  ROADMAP.md                                       Sprint 1.3 inserted; Sprint 2 scheduler substrate;
-                                                    After-Sprint-6 expanded with Loop 11 + team inbound
-new:
-  .claude/sprints/sprint-1.3-connections-layer.md  full sprint spec
-  .claude/sprints/sprint-2-metrics-digest.md       stub flagging scheduler dependency
-  .claude/sprints/sprint-7-portfolio-audit.md      Loop 11 stub
-  .claude/sprints/sprint-7-team-inbound.md         team inbound stub
-  supabase/migrations/0004_connections.sql         DRAFT — not applied
-renamed:
-  HANDOFF.md → .archive/handoffs/sprint-00-build-session-1.md
-                                                    preserved for Sprint 0 deploy verification session;
-                                                    this file replaces it for the planning session
-```
+**Status:** Code complete, deployed (`7f3cfda`). Visual verification still on you.
 
----
+Pure visual refactor of the Sprint 0 surfaces against `/.claude/design-system.md`. No new features.
 
-## Adversarial check (run before commit, recorded for transparency)
+What changed:
+- **Type & icons.** Geist removed (Vercel/AI trope per spec); Inter + JetBrains Mono now load via `next/font/google` with CSS variables. Lucide removed; `@phosphor-icons/react` installed but unused on Sprint 1.0 surfaces (sidebar is type-only per spec, buttons are text-only). `tw-animate-css` removed (motion is mostly disallowed).
+- **Palette.** All shadcn oklch neutrals replaced with the eight SoloDesk tokens in `app/globals.css`'s `@theme` block: `ink/ink-strong/ink-mute/ink-faint`, `paper/paper-card`, `rule/rule-strong`, `accent` (Prussian blue `#1F3A5F`). Four semantic tokens (`positive/caution/negative/info`) with 8% tint backgrounds for badges. Dark mode is warm-dark (ink-and-paper inverted), not iOS-grey. `prefers-reduced-motion` eliminates the 80–120ms transitions.
+- **Components restyled.** `AppSidebar` (type-only, 2px Prussian-blue active border, no icons, no card border), `PhaseBadge` (square corners, 11px medium uppercase, semantic 8% tints — purged the violet `scale` colour), `EventsTable` (no surrounding card, 1px rule between every row, no zebra, mono numerics, paper-card hover lift), `WaitlistForm` (bottom-border-only inputs, square ink-strong primary button), Markdown body (16px reading prose, square code blocks, accent-bordered blockquotes).
+- **Pages restyled.** All routes (`/`, `/login`, `/dashboard`, `/events`, `/ventures`, `/ventures/new`, `/ventures/[slug]`, `/settings`) migrated off shadcn tokens. Page titles use the load-bearing pattern: 28px bold ink-strong + 1px Prussian-blue rule beneath at 50% opacity. Form inputs are bottom-border-only, focus thickens to 2px Prussian blue. Empty states are facts only ("No events yet."). Login error copy tightened to design-spec voice ("Email invalid.").
 
-The brief asked: does any change soften an existing bright line? Does the connections spec leave a path for cross-venture credential access? Does the Loop portability rule contradict anything in sprint-0.5 or the document substrate spec?
+Quality:
+- `pnpm typecheck` clean
+- `pnpm lint` clean
+- 41 vitest tests pass (32 from Sprint 0 + 9 new for Sprint 0.5 chunker/recall)
+- `pnpm build` clean — all 14 routes generate including Sprint 0.5's
 
-**Verdict: clean.**
-
-- **Soft bright lines:** none. The Loop portability rule reinforces the existing "no cross-venture context" rule by extending it to the Loop definition layer. The cross-venture credential rule is parallel to the existing recall-scope rule, not a relaxation of it. The connections spec channels what would otherwise be ad-hoc env-var reads through one accessor — strictly tighter than the alternative.
-- **Cross-venture credential paths:** none identified. `getConnection` requires `ventureId`; grep test enforces `vault.decrypted_secrets` references only inside `/lib/connections/`; Loop 11's `getConnectionInventory` returns metadata only, never decrypts; RLS prep exists for v1 multi-tenant flip.
-- **Contradictions with sprint-0.5 or document substrate:** none. `buildAgentPrompt` already takes `ventureId` at runtime (matches portability rule). Document Section kinds are venture-agnostic by design (matches portability rule). Document substrate's anti-patterns (no agent regenerates more than the commented Section, etc.) are orthogonal to Loop portability.
-
-One edge case noted in the Sprint 1.3 spec: when `getConnection` finds no active connection, there's no `connection_id` to anchor the audit row to. Resolution recorded in build-session notes — denied attempts go to `events` (with `type='connection_denied'`) rather than `connection_audit`, since `events` is the existing append-log surface. This needs to be reflected in the migration's comment block and the `getConnection` implementation when Sprint 1.3 builds.
+**Untested:** rendered pixels in a browser. No way for me to verify visual correctness server-side. Go to `solodesk.ai` and `app.solodesk.ai/login` and confirm: Inter (not Geist) is loading; the page background is warm off-white `#F7F6F1` (not pure white); the title rule beneath is Prussian blue at 50%; phase badges are square; sidebar has no icons.
 
 ---
 
-## Decisions deferred
+## Sprint 0.5 — Memory layer code
 
-- **Sprint 2 scheduler shape (cron expression vs typed schedule object).** The Sprint 2 stub flags the substrate but defers the API shape to the build session, when Loop 8's actual cadence requirements are concrete.
-- **`venture_members` table shape.** Team-inbound stub flags the dependency but defers the schema until Sprint 7 build; v0 keeps the implicit single-operator model.
-- **OAuth flows for providers.** Sprint 1.3 spec is paste-API-key only. OAuth lands when the first Loop needs a provider that doesn't support API keys.
-- **Vault secret retention policy for orphaned secrets after rotation.** Deferred — at v0 scale, Vault retention is Supabase's responsibility; cleanup cron only built if it becomes an actual concern.
-- **Whether to renumber migration 0004 if Sprint 1.1's `0003_documents.sql` lands at a different number.** Decision: don't renumber. The brief explicitly forbade renumbering existing migrations; if Sprint 1.1 is forced to use 0005 because 0003 is reserved for something else, that's fine. Migrations are timestamped logically by sprint, not by strict integer ordering.
+**Status:** Code complete, deployed (`fd147f6`). External steps still pending — those gate it being *useful*, not its existence.
+
+The migration `supabase/migrations/0002_memory_layer.sql` was already drafted in repo. This commit added the libs, the on-write integration, the cron, the UI, and tests.
+
+What's now in the codebase:
+- `lib/memory/voyage.ts` — tiny fetch wrapper. The official `voyageai` SDK has un-extensioned ESM imports that don't resolve under Next 16's Turbopack (`ERR_UNSUPPORTED_DIR_IMPORT`); a ~80 LOC wrapper does the same job without fighting the bundler.
+- `lib/memory/embed.ts` — `embedText`, `embedBatch`, `embedRow`, `processBacklog`. Locked to `voyage-3` (1024 dims). Idempotent. Cost-tracked to `loop_runs`. Failure events landed in `events` for backlog visibility.
+- `lib/memory/recall.ts` — `recallContext({ ventureId, query, k, types, minSimilarity })`. **`ventureId` is required and the SQL functions enforce filtering at the database** — cross-venture recall is impossible by construction, not just by application convention. Tested.
+- `lib/memory/chunk.ts` + `lib/memory/company-md.ts` — chunker (`## ` heading splits, ~500-token windowing with 50-token overlap) and the orchestration helper that runs on venture create.
+- `lib/agents/prompt.ts` — `buildAgentPrompt`. Composition order: skill prompt + top-3 venture chunks + top-5 recall hits + task. Sub-budgets enforced (skill 2k / company 3k / recall 4k / task remaining).
+- `app/api/cron/embeddings/route.ts` — Vercel cron target for `processBacklog(100)`, gated on `Authorization: Bearer ${CRON_SECRET}`. Configured at `*/5 * * * *` in `vercel.json`. Allowlisted in `proxy.ts` under `/api/cron`.
+- `app/(authed)/ventures/[slug]/memories/` — list + form for manual capture. Append-only in v0. Linked from venture detail page.
+
+Migration 0002 was extended with four RPC helpers — `match_decisions / match_artifacts / match_memories / match_venture_chunks`. Each takes `venture_id` as a required arg and filters at the SQL layer. Recall calls these via supabase-js `.rpc()`.
+
+### What you need to do externally for Sprint 0.5 to come alive
+
+1. **Apply migration `0002_memory_layer.sql`** via Supabase SQL editor (or psql). Includes pgvector extension, embedding columns, two new tables, HNSW indexes, embedding-text triggers, and the four match_* RPC functions. Reversible via `drop` of the new tables + `alter table drop column` on the embeddings + `drop extension vector cascade`.
+2. **Voyage account** at voyageai.com. Generate an API key.
+3. **Vercel env vars** (Production + Preview): `VOYAGE_API_KEY`, `CRON_SECRET` (generate fresh: `openssl rand -hex 32`).
+4. **Verify cron**: after deploy, hit `https://app.solodesk.ai/api/cron/embeddings` with `Authorization: Bearer <CRON_SECRET>` — should return `{status:"ok",processed:0,failed:0}` on an empty backlog.
+5. **End-to-end test**: visit `/ventures/kounta/memories`, add a note. Within ~5 min the cron picks it up; the embedded indicator on the row flips from `pending` (caution) to `embedded` (positive).
 
 ---
 
-## Out of scope (per brief)
+## What's NOT done
 
-Confirmed not touched this session:
-- No Loop implementation code
-- Connections migration NOT applied to Supabase (`mcp__5423045f-..__apply_migration` not called; no `supabase db push`)
-- Sprint 0 SMTP fix or deploy verification — orthogonal, still pending in session 2
-- No renumbering of existing migrations 0001/0002/0003
-- `/.claude/design-system.md` not touched
+| Sprint | Status | Why parked |
+|---|---|---|
+| Sprint 1.1 — Document substrate | Not started | Needs migration 0003 (not yet drafted), and benefits from visual verification of Sprint 1.0 first. Big sprint — 3-4 hours of code. |
+| Sprint 1.2 — Decision Document UI | Not started | Depends on 1.1 |
+| Sprint 1.3 — Connections layer | Not started; migration `0004_connections.sql` already drafted in repo (planning session) | Spec is at `/.claude/sprints/sprint-1.3-connections-layer.md`. Independent of memory layer; can be next. |
+| Sprints 2-6 — Loops | Not started | Need 1.1+ |
+
+Tim's call on which to do next when the deploy + Voyage + Migadu items are sorted. My recommendation: visual verification of Sprint 1.0 first, then Sprint 1.1 (substrate everyone else depends on), then Sprint 1.3 (connections — independent), then 2 onward.
+
+---
+
+## Repository state
+
+- All commits pushed. Working tree clean. Origin/main = local main.
+- Recent commits (top of `git log --oneline`):
+  ```
+  fd147f6  Sprint 0.5 — memory layer code (migration + libs + cron + memories UI)
+  7f3cfda  Sprint 1.0 — design migration: SoloDesk palette, Inter, Phosphor
+  09c9f2e  Revert TEMP SMTP-probe diagnostic (Sprint 0 deploy verification)
+  47db345  TEMP: allow /api/diag through proxy for SMTP-probe diagnostic   ← reverted
+  86b3885  TEMP: add SMTP-probe diagnostic route for Sprint 0 deploy …     ← reverted
+  0d5cc94  Incorporate AIOS-framework insights into roadmap
+  ```
+- Routes in production build: 14, including `/api/cron/embeddings` and `/ventures/[slug]/memories`.
+- 41 vitest tests passing.
 
 ---
 
 ## Exact next step
 
-Tim has two parallel tracks:
-
-1. **Sprint 0 deploy verification (still in progress).** Pick up at `.claude/runbooks/sprint-00-deploy-runbook.md`. Reference `.archive/handoffs/sprint-00-build-session-1.md` for what was built in session 1. When verification passes the evaluator (≥7), Sprint 0 closes and Sprint 0.5 begins.
-
-2. **Review this planning session's changes.** Adversarial-review the five edits before committing — particularly Sprint 1.3's spec internals (audit-before-return ordering, the `denied` event-table fallback, RLS-readiness commenting). When approved, the commit message reads:
-
-   ```
-   Incorporate AIOS-framework insights into roadmap
-
-   - Loop portability bright line (CLAUDE.md)
-   - Sprint 1.3 connections layer spec + draft migration 0004
-   - Sprint 2 gains general-purpose Loop scheduler substrate
-   - Loop 11 (portfolio audit) added as Nov 1 gate item
-   - Team inbound surface added as Nov 1 gate item
-   ```
-
-   Single consolidated commit chosen over per-change commits — the five changes form a coherent thesis (operationalising portfolio-platform claims), and splitting would obscure the Loop 11 / team-inbound dependency on the Sprint 1.3 substrate and Sprint 2 scheduler.
+1. Visit the live site and eyeball Sprint 1.0 — confirm Inter renders, palette is warm-paper not white, phase badges are square, sidebar has no icons.
+2. Check Migadu Spam folder for the test emails. If found, allowlist `hello@solodesk.ai`. If not, check Migadu's Identity / plus-addressing settings on `tim@solodesk.ai`.
+3. Apply migration `0002_memory_layer.sql` to the Sydney Supabase project (if not already).
+4. Set `VOYAGE_API_KEY` and `CRON_SECRET` in Vercel project env (both Production + Preview).
+5. After redeploy, hit the cron endpoint with the bearer token to confirm 200.
+6. Add a test memory at `/ventures/kounta/memories`, wait 5 min, confirm `pending` → `embedded`.
+7. Then pick the next sprint (1.1 Documents, 1.3 Connections, or both).
