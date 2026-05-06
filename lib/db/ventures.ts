@@ -36,12 +36,12 @@ export async function getVentureBySlug(
 
 export async function createVenture(
   input: TablesInsert<"ventures">,
-): Promise<{ slug: string } | { error: string }> {
+): Promise<{ id: string; slug: string } | { error: string }> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("ventures")
     .insert(input)
-    .select("slug")
+    .select("id, slug")
     .maybeSingle();
   if (error) {
     if (error.code === "23505") return { error: "Slug already exists" };
@@ -49,5 +49,5 @@ export async function createVenture(
     return { error: error.message };
   }
   if (!data) return { error: "no row returned" };
-  return { slug: data.slug };
+  return { id: data.id, slug: data.slug };
 }

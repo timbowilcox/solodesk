@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { createVenture } from "@/lib/db/ventures";
+import { indexCompanyMd } from "@/lib/memory/company-md";
 
 const inputSchema = z.object({
   slug: z
@@ -54,6 +55,20 @@ export async function createVentureAction(formData: FormData): Promise<void> {
 
   if ("error" in result) {
     redirect(`/ventures/new?${encodeError("create_failed", result.error)}`);
+  }
+
+  // Fire-and-forget: chunk + embed COMPANY.md if provided. Cron retries
+  // anything that fails inline.
+  if (parsed.data.company_md) {
+    void indexCompanyMd({
+      ventureId: result.id,
+      companyMd: parsed.data.company_md,
+    }).catch((e: unknown) => {
+      console.error(
+        "[createVentureAction] indexCompanyMd failed (backlog cron will retry)",
+        e instanceof Error ? e.message : e,
+      );
+    });
   }
 
   revalidatePath("/ventures");

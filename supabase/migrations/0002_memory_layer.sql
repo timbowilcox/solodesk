@@ -179,3 +179,118 @@ $$ language plpgsql;
 create trigger artifacts_embedding_text_trigger
   before insert or update on artifacts
   for each row execute function artifacts_set_embedding_text();
+
+-- ==================================================================
+-- RECALL HELPERS — venture-scoped vector search per table
+-- ==================================================================
+-- Each function takes a query embedding + venture filter + thresholds and
+-- returns ranked rows. Cosine similarity = 1 - (embedding <=> query) since
+-- pgvector's `<=>` operator returns cosine distance.
+--
+-- Hard scope: every function takes venture_id as a required argument and
+-- filters with `where venture_id = $1`. There is no path to query across
+-- ventures from these functions.
+
+create or replace function match_decisions(
+  p_venture_id uuid,
+  p_query vector(1024),
+  p_min_similarity float default 0.5,
+  p_limit int default 5
+) returns table (
+  id uuid,
+  ts timestamptz,
+  text text,
+  similarity float,
+  metadata jsonb
+) language sql stable as $$
+  select
+    d.id,
+    d.ts,
+    coalesce(d.embedding_text, d.title) as text,
+    1 - (d.embedding <=> p_query) as similarity,
+    jsonb_build_object('title', d.title, 'status', d.status) as metadata
+  from decisions d
+  where d.venture_id = p_venture_id
+    and d.embedding is not null
+    and 1 - (d.embedding <=> p_query) >= p_min_similarity
+  order by d.embedding <=> p_query asc
+  limit p_limit;
+$$;
+
+create or replace function match_artifacts(
+  p_venture_id uuid,
+  p_query vector(1024),
+  p_min_similarity float default 0.5,
+  p_limit int default 5
+) returns table (
+  id uuid,
+  ts timestamptz,
+  text text,
+  similarity float,
+  metadata jsonb
+) language sql stable as $$
+  select
+    a.id,
+    a.ts,
+    coalesce(a.embedding_text, '') as text,
+    1 - (a.embedding <=> p_query) as similarity,
+    jsonb_build_object('loop_name', a.loop_name, 'type', a.type, 'status', a.status) as metadata
+  from artifacts a
+  where a.venture_id = p_venture_id
+    and a.embedding is not null
+    and 1 - (a.embedding <=> p_query) >= p_min_similarity
+  order by a.embedding <=> p_query asc
+  limit p_limit;
+$$;
+
+create or replace function match_memories(
+  p_venture_id uuid,
+  p_query vector(1024),
+  p_min_similarity float default 0.5,
+  p_limit int default 5
+) returns table (
+  id uuid,
+  ts timestamptz,
+  text text,
+  similarity float,
+  metadata jsonb
+) language sql stable as $$
+  select
+    m.id,
+    m.ts,
+    m.text,
+    1 - (m.embedding <=> p_query) as similarity,
+    jsonb_build_object('source', m.source, 'tags', m.tags) || coalesce(m.metadata, '{}'::jsonb) as metadata
+  from memories m
+  where m.venture_id = p_venture_id
+    and m.embedding is not null
+    and 1 - (m.embedding <=> p_query) >= p_min_similarity
+  order by m.embedding <=> p_query asc
+  limit p_limit;
+$$;
+
+create or replace function match_venture_chunks(
+  p_venture_id uuid,
+  p_query vector(1024),
+  p_min_similarity float default 0.5,
+  p_limit int default 5
+) returns table (
+  id uuid,
+  ts timestamptz,
+  text text,
+  similarity float,
+  metadata jsonb
+) language sql stable as $$
+  select
+    c.id,
+    c.created_at as ts,
+    c.text,
+    1 - (c.embedding <=> p_query) as similarity,
+    jsonb_build_object('source', c.source, 'source_version', c.source_version, 'ord', c.ord) as metadata
+  from venture_chunks c
+  where c.venture_id = p_venture_id
+    and c.embedding is not null
+    and 1 - (c.embedding <=> p_query) >= p_min_similarity
+  order by c.embedding <=> p_query asc
+  limit p_limit;
+$$;

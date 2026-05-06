@@ -119,6 +119,113 @@ type LooseRow = Record<string, unknown>;
 
 type NoRelationships = [];
 
+export type MemorySource = string; // 'manual','agent:<name>','digest','retrospective','elicitation_resolved'
+
+type MemoriesRow = {
+  id: string;
+  venture_id: string | null;
+  ts: string;
+  source: MemorySource;
+  text: string;
+  tags: string[];
+  embedding: number[] | null;
+  embedded_at: string | null;
+  metadata: Json;
+  created_at: string;
+};
+
+type MemoriesInsert = {
+  id?: string;
+  venture_id?: string | null;
+  ts?: string;
+  source: MemorySource;
+  text: string;
+  tags?: string[];
+  embedding?: number[] | null;
+  embedded_at?: string | null;
+  metadata?: Json;
+  created_at?: string;
+};
+
+type MemoriesUpdate = Partial<MemoriesInsert>;
+
+export type VentureChunkSource = "company_md" | "runbook" | "spec";
+
+type VentureChunksRow = {
+  id: string;
+  venture_id: string | null;
+  source: VentureChunkSource;
+  source_version: number;
+  ord: number;
+  text: string;
+  embedding: number[] | null;
+  embedded_at: string | null;
+  created_at: string;
+};
+
+type VentureChunksInsert = {
+  id?: string;
+  venture_id?: string | null;
+  source: VentureChunkSource;
+  source_version?: number;
+  ord: number;
+  text: string;
+  embedding?: number[] | null;
+  embedded_at?: string | null;
+  created_at?: string;
+};
+
+type VentureChunksUpdate = Partial<VentureChunksInsert>;
+
+export type LoopRunStatus =
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "blown_budget"
+  | "cancelled";
+
+type LoopRunsRow = {
+  id: string;
+  ts: string;
+  loop_name: string;
+  venture_id: string | null;
+  trigger: string | null;
+  input: Json;
+  output_artifact_id: string | null;
+  output_decision_id: string | null;
+  status: LoopRunStatus;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  cost_cents: number | null;
+  duration_ms: number | null;
+  budget_tokens: number | null;
+  budget_cents: number | null;
+  model: string | null;
+  error_message: string | null;
+};
+
+type LoopRunsInsert = {
+  id?: string;
+  ts?: string;
+  loop_name: string;
+  venture_id?: string | null;
+  trigger?: string | null;
+  input?: Json;
+  output_artifact_id?: string | null;
+  output_decision_id?: string | null;
+  status: LoopRunStatus;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  cost_cents?: number | null;
+  duration_ms?: number | null;
+  budget_tokens?: number | null;
+  budget_cents?: number | null;
+  model?: string | null;
+  error_message?: string | null;
+};
+
+type LoopRunsUpdate = Partial<LoopRunsInsert>;
+
 export type Database = {
   public: {
     Tables: {
@@ -159,9 +266,21 @@ export type Database = {
         Relationships: NoRelationships;
       };
       loop_runs: {
-        Row: LooseRow;
-        Insert: LooseRow;
-        Update: LooseRow;
+        Row: LoopRunsRow;
+        Insert: LoopRunsInsert;
+        Update: LoopRunsUpdate;
+        Relationships: NoRelationships;
+      };
+      memories: {
+        Row: MemoriesRow;
+        Insert: MemoriesInsert;
+        Update: MemoriesUpdate;
+        Relationships: NoRelationships;
+      };
+      venture_chunks: {
+        Row: VentureChunksRow;
+        Insert: VentureChunksInsert;
+        Update: VentureChunksUpdate;
         Relationships: NoRelationships;
       };
       metric_snapshots: {
@@ -183,8 +302,81 @@ export type Database = {
         Relationships: NoRelationships;
       };
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Views: {
+      embedding_backlog: {
+        Row: {
+          table_name: "decisions" | "artifacts" | "memories" | "venture_chunks";
+          id: string;
+          text: string | null;
+          ts: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: NoRelationships;
+      };
+    };
+    Functions: {
+      match_decisions: {
+        Args: {
+          p_venture_id: string;
+          p_query: number[];
+          p_min_similarity?: number;
+          p_limit?: number;
+        };
+        Returns: Array<{
+          id: string;
+          ts: string;
+          text: string;
+          similarity: number;
+          metadata: Json;
+        }>;
+      };
+      match_artifacts: {
+        Args: {
+          p_venture_id: string;
+          p_query: number[];
+          p_min_similarity?: number;
+          p_limit?: number;
+        };
+        Returns: Array<{
+          id: string;
+          ts: string;
+          text: string;
+          similarity: number;
+          metadata: Json;
+        }>;
+      };
+      match_memories: {
+        Args: {
+          p_venture_id: string;
+          p_query: number[];
+          p_min_similarity?: number;
+          p_limit?: number;
+        };
+        Returns: Array<{
+          id: string;
+          ts: string;
+          text: string;
+          similarity: number;
+          metadata: Json;
+        }>;
+      };
+      match_venture_chunks: {
+        Args: {
+          p_venture_id: string;
+          p_query: number[];
+          p_min_similarity?: number;
+          p_limit?: number;
+        };
+        Returns: Array<{
+          id: string;
+          ts: string;
+          text: string;
+          similarity: number;
+          metadata: Json;
+        }>;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
