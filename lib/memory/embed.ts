@@ -16,7 +16,8 @@ export type EmbeddableTable =
   | "decisions"
   | "artifacts"
   | "memories"
-  | "venture_chunks";
+  | "venture_chunks"
+  | "sections";
 
 export type SendResult =
   | { ok: true; vectors: number[][]; tokensUsed: number }
@@ -79,9 +80,12 @@ export async function embedBatch(texts: string[]): Promise<SendResult> {
 }
 
 function pickEmbeddingTextColumn(table: EmbeddableTable): string {
-  // decisions/artifacts have a generated `embedding_text` column populated
-  // by triggers. memories use their own `text`; venture_chunks use `text` too.
-  if (table === "decisions" || table === "artifacts") return "embedding_text";
+  // decisions/artifacts/sections have a generated `embedding_text` column
+  // populated by triggers. memories use their own `text`; venture_chunks
+  // use `text` too.
+  if (table === "decisions" || table === "artifacts" || table === "sections") {
+    return "embedding_text";
+  }
   return "text";
 }
 

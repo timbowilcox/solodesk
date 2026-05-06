@@ -119,6 +119,135 @@ type LooseRow = Record<string, unknown>;
 
 type NoRelationships = [];
 
+export type DocumentType =
+  | "decision"
+  | "content"
+  | "intel_digest"
+  | "support_ticket"
+  | "daily_digest"
+  | "triage_queue";
+
+export type DocumentStatus =
+  | "draft"
+  | "reviewing"
+  | "approved"
+  | "rejected"
+  | "published"
+  | "archived";
+
+export type SectionKind =
+  | "prose"
+  | "recommendation"
+  | "alternatives"
+  | "kill_criteria"
+  | "evidence"
+  | "risk"
+  | "agent_note"
+  | "comment_thread"
+  | "metric_block"
+  | "intel_signal"
+  | "intel_signals_table"
+  | "support_reply_block"
+  | "content_block";
+
+export type SectionStatus =
+  | "draft"
+  | "reviewing"
+  | "approved"
+  | "revising"
+  | "rejected"
+  | "dismissed";
+
+export type CommentStatus = "open" | "accepted" | "dismissed" | "replied";
+
+type DocumentsRow = {
+  id: string;
+  venture_id: string;
+  type: DocumentType;
+  title: string;
+  status: DocumentStatus;
+  loop_name: string;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+  metadata: Json;
+};
+
+type DocumentsInsert = {
+  id?: string;
+  venture_id: string;
+  type: DocumentType;
+  title: string;
+  status?: DocumentStatus;
+  loop_name: string;
+  approved_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  metadata?: Json;
+};
+
+type DocumentsUpdate = Partial<DocumentsInsert>;
+
+type SectionsRow = {
+  id: string;
+  document_id: string;
+  kind: SectionKind;
+  ord: number;
+  content: Json;
+  status: SectionStatus;
+  version: number;
+  parent_version: string | null;
+  embedding: number[] | null;
+  embedding_text: string | null;
+  embedded_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type SectionsInsert = {
+  id?: string;
+  document_id: string;
+  kind: SectionKind;
+  ord: number;
+  content?: Json;
+  status?: SectionStatus;
+  version?: number;
+  parent_version?: string | null;
+  embedding?: number[] | null;
+  embedding_text?: string | null;
+  embedded_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type SectionsUpdate = Partial<SectionsInsert>;
+
+type CommentsRow = {
+  id: string;
+  section_id: string;
+  author: string;
+  body: string;
+  evidence: Json;
+  status: CommentStatus;
+  dismiss_reason: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+type CommentsInsert = {
+  id?: string;
+  section_id: string;
+  author: string;
+  body: string;
+  evidence?: Json;
+  status?: CommentStatus;
+  dismiss_reason?: string | null;
+  resolved_at?: string | null;
+  created_at?: string;
+};
+
+type CommentsUpdate = Partial<CommentsInsert>;
+
 export type MemorySource = string; // 'manual','agent:<name>','digest','retrospective','elicitation_resolved'
 
 type MemoriesRow = {
@@ -277,6 +406,24 @@ export type Database = {
         Update: MemoriesUpdate;
         Relationships: NoRelationships;
       };
+      documents: {
+        Row: DocumentsRow;
+        Insert: DocumentsInsert;
+        Update: DocumentsUpdate;
+        Relationships: NoRelationships;
+      };
+      sections: {
+        Row: SectionsRow;
+        Insert: SectionsInsert;
+        Update: SectionsUpdate;
+        Relationships: NoRelationships;
+      };
+      comments: {
+        Row: CommentsRow;
+        Insert: CommentsInsert;
+        Update: CommentsUpdate;
+        Relationships: NoRelationships;
+      };
       venture_chunks: {
         Row: VentureChunksRow;
         Insert: VentureChunksInsert;
@@ -305,7 +452,12 @@ export type Database = {
     Views: {
       embedding_backlog: {
         Row: {
-          table_name: "decisions" | "artifacts" | "memories" | "venture_chunks";
+          table_name:
+            | "decisions"
+            | "artifacts"
+            | "memories"
+            | "venture_chunks"
+            | "sections";
           id: string;
           text: string | null;
           ts: string;
@@ -362,6 +514,21 @@ export type Database = {
         }>;
       };
       match_venture_chunks: {
+        Args: {
+          p_venture_id: string;
+          p_query: number[];
+          p_min_similarity?: number;
+          p_limit?: number;
+        };
+        Returns: Array<{
+          id: string;
+          ts: string;
+          text: string;
+          similarity: number;
+          metadata: Json;
+        }>;
+      };
+      match_sections: {
         Args: {
           p_venture_id: string;
           p_query: number[];
