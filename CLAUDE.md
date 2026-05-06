@@ -140,6 +140,8 @@ Before any new SKILL.md ships:
 - No agent touches payments, credentials, or executes financial transactions
 - No agent sends communications on behalf of any human (drafts only, human approves)
 - No cross-venture context. Every invocation scopes to one `venture_id`. **`recallContext()` requires `venture_id` and never returns rows from other ventures.** This is a bright line.
+- **Cross-venture credential leakage is a bright line.** From Sprint 1.3 onwards, `getConnection({ ventureId, provider })` is the only path to read external-provider credentials, and it never returns a row from another venture. Direct reads of `connections.vault_secret_id` or `vault.decrypted_secrets` outside `/lib/connections/` are an anti-pattern.
+- **Loops are venture-portable.** A Loop is defined once and takes `ventureId` at runtime via `buildAgentPrompt()`. Venture-specific behaviour lives in venture-scoped Document context (COMPANY.md chunks, memories, prior Decisions, connections inventory) — never in the Loop or skill definition. If you find yourself adding `if (ventureId === 'kounta')` branches to a SKILL.md or Loop file, you're violating this. Cross-venture comparison of Loop outcomes must remain architecturally possible at all times — that's the portfolio differentiator and the prerequisite for Loop 11 (portfolio audit).
 - No agent runs without a budget. If you don't know the budget, the skill isn't ready.
 - **No agent constructs its own prompt.** Every loop's invocation goes through `buildAgentPrompt()` from `/lib/agents/prompt.ts`. If you find yourself string-concatenating context into a system prompt manually, you're violating this rule. Add what you need to the helper instead.
 - **No agent adds events as memories.** Events are SQL aggregation surface, not semantic recall. If a specific event matters enough to recall, promote it to a `memories` row explicitly.
@@ -207,6 +209,7 @@ This section grows. When a session fails, document the mode here.
 - **Design system (authoritative for all UI):** `/.claude/design-system.md`
 - **Document/Section/Comment interface spec:** `/.claude/decision-document-interface.md`
 - **Memory layer spec:** `/.claude/sprints/sprint-0.5-memory-layer.md`
+- **Connections layer spec:** `/.claude/sprints/sprint-1.3-connections-layer.md` (substrate for external venture credentials; consumed from Sprint 2 onwards)
 - **Agent harness skill (parent):** `~/.claude/skills/user/agent-harness/SKILL.md`
 - **TCOS architecture doc:** `/TCOS.md` (separate, in repo root)
 

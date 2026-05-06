@@ -1,6 +1,6 @@
 # SoloDesk — Roadmap
 
-8 sprints. Sprint 0 ships the substrate. Sprint 0.5 adds the memory layer. Sprint 1 ships the design migration plus the Document/Section/Comment substrate that all downstream loops reuse. Sprints 2-6 each ship one loop on top of that substrate. After every sprint, you can stop and the system still works — the next sprint just adds capability.
+Sprint 0 ships the substrate. Sprint 0.5 adds the memory layer. Sprint 1 ships the design migration plus the Document/Section/Comment substrate that all downstream loops reuse. Sprint 1.3 adds the connections layer (venture-scoped external credentials) before Sprint 2 — the first Loop that needs them. Sprints 2-6 each ship one loop on top of those substrates. After every sprint, you can stop and the system still works — the next sprint just adds capability.
 
 Each sprint is governed by agent-harness: SPRINT.md scope before build, HANDOFF.md at end, evaluator session before merge.
 
@@ -100,16 +100,41 @@ DOD highlights:
 
 ---
 
-## Sprint 2 — Metrics digest + anomaly detection (Loop 8)
+## Sprint 1.3 — Connections layer
 
-**Loop type:** workflow (digest) + agent (anomaly explanation).
-**Why second:** the digest is the daily heartbeat; everything downstream uses it.
-**Scope:** Webhook integrations (Stripe, Resend, Vercel, GitHub minimum), SQL views per metric, daily 6am cron generates digest per active venture, anomaly-explainer agent investigates flagged moves.
+**Status:** pre-written (`/.claude/sprints/sprint-1.3-connections-layer.md`)
+**Position:** after Sprint 1.2, before Sprint 2 — the first Loop that needs external venture credentials
+**Loops added:** none directly; substrate that every Loop with external dependencies (Sprint 2 onwards) consumes
+**Estimated sessions:** 1
+
+This sprint exists because Sprint 2 (Loop 8 — daily metrics digest) is the first Loop that reads from external venture-owned systems (Stripe, Resend, Vercel, GitHub), and every Loop after compounds the dependency (Loop 4 to Resend, Loop 5 to the open web, Loop 6 to inbound mail, post-v0 Loops to NetSuite/Mixpanel/Plausible/Twilio). Without a credentials substrate, Sprint 2 ships a one-off shim — env vars per venture, hand-rolled secret handling, no audit trail, no revocation — and every subsequent Loop has to retrofit. Sprint 1.3 puts the substrate down so the cross-venture credential boundary is architecturally enforceable: every Loop's external API call routes through `getConnection({ ventureId, provider })`, which decrypts and audits in one accessor with no other path.
+
+This is the venture-equivalent of the AIOS-framework move where dedicated agent service accounts replace operator personal credentials. Same principle per-provider per-venture.
 
 DOD highlights:
-- Webhook handlers for Stripe (payment events), Resend (email events), Vercel (deploy events), GitHub (push/PR events).
+- Migration `0004_connections.sql` applied — `connections` and `connection_audit` tables, exclusion constraint on active rows, indexes. (Migration is committed in draft form ahead of this sprint; it's not applied until the build session.)
+- Supabase Vault confirmed enabled; `vaultPut` / `vaultGet` helpers in `/lib/connections/vault.ts` round-trip encrypted credential payloads.
+- `getConnection({ ventureId, provider, loopRunId, requestSummary })` is the single credential-read path — grep test enforces no other file references `vault.decrypted_secrets` or `vault_secret_id` outside `/lib/connections/`.
+- Cross-venture isolation tested end-to-end: a Stripe connection on Kounta is unreachable through `getConnection` scoped to Counsel.
+- Audit-before-return ordering: a `connection_audit` row lands BEFORE the credential is returned. Audit insert failure fails the whole call — no silent skips.
+- Provider adapters for Sprint 2 minimum: Stripe, Resend, Vercel, GitHub. Each exposes a `client({ ventureId, loopRunId, requestSummary })` factory; raw credentials never escape `/lib/connections/`.
+- `/ventures/[slug]/settings/connections` UI: list, create, rotate, revoke per provider; per-row audit view; admin-only at the server-action level.
+- RLS policies prepared as commented stubs in the migration — NOT enabled in v0 (single-org logically). When productisation flips multi-tenant on, these are the FIRST tables to enable RLS on.
+- New bright lines documented in CLAUDE.md: cross-venture credential leakage forbidden; no direct credential reads outside `/lib/connections/`; no operator personal credentials in `connections` (always service accounts at the provider).
+
+---
+
+## Sprint 2 — Metrics digest + Loop scheduler substrate (Loop 8)
+
+**Loop type:** workflow (digest) + agent (anomaly explanation), riding two new substrates (scheduler + connections).
+**Why second:** the digest is the daily heartbeat; everything downstream uses it. Sprint 2 also introduces the general-purpose Loop scheduler — Loop 8 is the first consumer, not the only one.
+**Scope:** General-purpose Loop scheduler (cron-style, venture-scoped, observable, reusable by any subsequent Loop). Webhook integrations (Stripe, Resend, Vercel, GitHub minimum) consuming Sprint 1.3 connections. SQL views per metric. Daily 6am scheduled run generates digest per active venture. Anomaly-explainer agent investigates flagged moves.
+
+DOD highlights:
+- **Loop scheduler substrate** — cron-style triggers registered in code (typed), venture-scoped (single, all, or subset). Each fire generates a `loop_runs` row with `trigger='schedule'` before the Loop body runs. Failures isolate per Loop run; one bad invocation doesn't stop the next firing. Reusable from Sprint 2 onwards by every Loop with periodic execution. Loop 8 is the first consumer; Loop 5 (weekly intel scout), Loop 10 (Sunday retrospective digest), Loop 11 (portfolio audit, post-Sprint-6), and any future scheduled Loop reuse this substrate — none ship a parallel cron implementation. Settings UI surfaces enabled scheduled Loops per venture, last-run status, next-run time.
+- Webhook handlers for Stripe (payment events), Resend (email events), Vercel (deploy events), GitHub (push/PR events). Each handler resolves credentials through `getConnection` (Sprint 1.3 dependency) — no env-var fallbacks for venture-scoped credentials.
 - SQL views: `mrr_by_venture`, `email_volume_7d`, `deploy_frequency`, `pr_velocity`.
-- Daily cron computes deltas, flags moves >2σ from 30-day mean.
+- Daily 6am scheduled Loop 8 run computes deltas, flags moves >2σ from 30-day mean.
 - `metric_snapshots` table populated daily.
 - `anomaly-explainer` skill runs when an anomaly is flagged. Writes explanation to `anomalies.explanation`.
 - **Daily Digest is a Document** (`type=daily_digest`) per `/.claude/decision-document-interface.md`, with Section kinds `prose` (headline), `metric_block` (KPIs), `prose` (anomalies list with proposed cause), `agent_note` (unexplained anomalies — yellow flag), `prose` ("Your three decisions today" with Document links).
@@ -186,7 +211,12 @@ DOD highlights:
 
 ## After Sprint 6
 
-The system is feature-complete for v0. From here it's:
+The Loop catalogue is feature-complete for v0 single-operator use. Two substrate items remain before the Nov 1 productise call — neither is optional:
+
+- **Loop 11 — Portfolio audit.** Cross-venture meta-loop. Runs against the full set of authed ventures. Surfaces stale priorities (Document not updated in N days), unused capabilities (Loop never invoked on venture X in M days), missing connections (Loop 8 enabled on a venture but no Stripe connection present), divergence (Loop 8 scoring distribution drifting across venture instances). Output is a portfolio-scope Document of typed Sections, one per finding. Differentiator vs running Claude Code per venture. Runs on the Sprint 2 scheduler — not a parallel cron. Stub at `/.claude/sprints/sprint-7-portfolio-audit.md`. Gates the Nov 1 productise criteria.
+- **Team inbound — per-venture inbox.** Inbound email forwarder routes messages to the correct venture (recipient subdomain or tag). Role-gated visibility: teammates query SoloDesk for their venture only; the operator sees all. Reuses Resend pipeline and Corum-derived ingest patterns. Required for "OS for portfolio operators" to extend beyond the operator at the centre. Stub at `/.claude/sprints/sprint-7-team-inbound.md`. Gates the Nov 1 productise criteria.
+
+Day-to-day operation continues alongside:
 - Per-venture instantiation (COMPANY.md per venture, intel_sources, support forwarding, webhook setup).
 - Rubric tuning. Every Sunday — review week's outputs, update rubrics where reviewers were too soft or too harsh.
 - Compounding. Every failure mode → CLAUDE.md or rubric update. The harness should improve weekly.

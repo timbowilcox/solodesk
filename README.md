@@ -128,6 +128,8 @@ Binary call on whether SoloDesk goes from internal tool to productised SaaS. Dec
 - Has it survived 6 months without major rebuild?
 - Has the rubric library actually compounded (measurable: rejection rate of agent outputs at 4-6 weeks vs at month 5)?
 - Has the Section catalogue grown from the Sprint 1 starter kinds into a meaningful library specific to portfolio operation work? (This is the moat — agents commoditise, but a vertical-AI primitive doesn't.)
+- **Has Loop 11 (portfolio audit) shipped and run?** Cross-venture meta-loop is the differentiator vs running Claude Code per venture. Spec stub at `/.claude/sprints/sprint-7-portfolio-audit.md`. If Loop 11 didn't ship, the "OS for portfolio operators" claim doesn't hold operationally and the call defaults to "not yet."
+- **Has the team-inbound surface shipped, with at least one teammate working a venture's inbox?** Spec stub at `/.claude/sprints/sprint-7-team-inbound.md`. Required to demonstrate the platform extends beyond the operator at the centre. Without this, SoloDesk is a single-operator tool, not a portfolio platform.
 - Is there at least one second design partner who'd pay $200/mo for it?
 - Has Anthropic shipped native features that make 60%+ of SoloDesk redundant?
 - Is the waitlist signal real (not vanity — actual conversations with signups confirming pain)?
