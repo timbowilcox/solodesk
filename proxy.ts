@@ -5,7 +5,7 @@ import { hostKind } from "@/lib/host";
 import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware";
 
 const APP_PUBLIC_PATHS = ["/login", "/auth"];
-const APP_PUBLIC_API_PREFIXES = ["/api/webhooks"];
+const APP_PUBLIC_API_PREFIXES = ["/api/webhooks", "/api/diag"];
 const LANDING_ALLOWED_PATHS = new Set<string>(["/", "/api/waitlist"]);
 
 export async function proxy(request: NextRequest) {
