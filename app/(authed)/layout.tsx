@@ -18,10 +18,10 @@ export default async function AuthedLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-paper">
       <AppSidebar email={user.email} />
       <main className="flex-1 overflow-x-hidden">
-        <div className="mx-auto max-w-5xl px-8 py-10">{children}</div>
+        <div className="mx-auto max-w-5xl px-12 py-12">{children}</div>
       </main>
     </div>
   );

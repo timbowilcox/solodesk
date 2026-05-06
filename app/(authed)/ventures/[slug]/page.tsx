@@ -32,48 +32,51 @@ export default async function VenturePage({
   const events = await listRecentEvents({ ventureId: venture.id, limit: 50 });
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       <header className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          <Link href="/ventures" className="underline-offset-2 hover:underline">
+        <p className="text-xs">
+          <Link
+            href="/ventures"
+            className="text-accent underline-offset-2 hover:underline"
+          >
             ← Ventures
           </Link>
         </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {venture.name}
-          </h1>
-          <PhaseBadge phase={venture.phase} />
-          <span className="font-mono text-xs text-muted-foreground">
-            {venture.slug}
-          </span>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-ink-strong">
+              {venture.name}
+            </h1>
+            <PhaseBadge phase={venture.phase} />
+            <span className="font-mono text-xs text-ink-mute">
+              {venture.slug}
+            </span>
+          </div>
+          <div className="h-px w-12 bg-accent opacity-50" />
         </div>
         {venture.north_star && (
-          <p className="text-sm text-muted-foreground">
-            North-star: <span className="font-medium">{venture.north_star}</span>
+          <p className="pt-2 text-sm text-ink-mute">
+            North-star:{" "}
+            <span className="font-medium text-ink">{venture.north_star}</span>
           </p>
         )}
       </header>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="space-y-4">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-ink-mute">
           COMPANY.md
         </h2>
         {venture.company_md ? (
-          <div className="rounded-md border border-border bg-background p-6">
-            <Markdown content={venture.company_md} />
-          </div>
+          <Markdown content={venture.company_md} />
         ) : (
-          <div className="rounded-md border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              No COMPANY.md yet for this venture.
-            </p>
-          </div>
+          <p className="py-4 text-sm text-ink-mute">
+            No COMPANY.md yet for this venture.
+          </p>
         )}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="space-y-4">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-ink-mute">
           Recent events
         </h2>
         <EventsTable

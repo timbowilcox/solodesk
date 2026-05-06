@@ -11,51 +11,54 @@ export default async function VenturesPage() {
   const ventures = await listVentures();
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Ventures</h1>
-          <p className="text-sm text-muted-foreground">
+    <div className="space-y-8">
+      <header className="flex items-end justify-between gap-6">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight text-ink-strong">
+            Ventures
+          </h1>
+          <div className="h-px w-12 bg-accent opacity-50" />
+          <p className="pt-2 text-sm text-ink-mute">
             Every active or dormant venture. One row per slug.
           </p>
         </div>
         <Link
           href="/ventures/new"
-          className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90"
+          className="bg-ink-strong px-4 py-2 text-base font-medium text-paper-card transition-opacity duration-[80ms] hover:opacity-85 active:opacity-70"
         >
           New venture
         </Link>
       </header>
 
       {ventures.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            No ventures yet.{" "}
-            <Link href="/ventures/new" className="underline">
-              Create the first one.
-            </Link>
-          </p>
-        </div>
+        <p className="py-4 text-sm text-ink-mute">
+          No ventures yet.{" "}
+          <Link
+            href="/ventures/new"
+            className="text-accent underline-offset-2 hover:underline"
+          >
+            Create the first.
+          </Link>
+        </p>
       ) : (
-        <ul className="overflow-hidden rounded-md border border-border">
-          {ventures.map((v, idx) => (
-            <li
-              key={v.id}
-              className={idx > 0 ? "border-t border-border" : undefined}
-            >
+        <ul>
+          {ventures.map((v) => (
+            <li key={v.id} className="border-b border-rule">
               <Link
                 href={`/ventures/${v.slug}`}
-                className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-3 transition hover:bg-muted/30"
+                className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-3 py-3 transition-colors duration-[80ms] hover:bg-paper-card"
               >
                 <div className="min-w-0 space-y-0.5">
-                  <p className="truncate text-sm font-medium">{v.name}</p>
-                  <p className="truncate font-mono text-xs text-muted-foreground">
+                  <p className="truncate text-base font-medium text-ink">
+                    {v.name}
+                  </p>
+                  <p className="truncate font-mono text-xs text-ink-mute">
                     {v.slug}
                     {v.north_star ? ` · ${v.north_star}` : ""}
                   </p>
                 </div>
                 <PhaseBadge phase={v.phase} />
-                <span className="text-xs text-muted-foreground">→</span>
+                <span className="text-xs text-ink-faint">→</span>
               </Link>
             </li>
           ))}

@@ -16,6 +16,12 @@ const ERROR_MESSAGES: Record<string, string> = {
   insert_failed: "Saving the event failed. Check the logs.",
 };
 
+const inputClass =
+  "block w-full border-0 border-b border-rule-strong bg-transparent px-0 py-2 text-base text-ink outline-none transition-[border-color] duration-[80ms] placeholder:text-ink-faint focus:border-b-2 focus:border-accent focus:outline-none";
+
+const labelClass =
+  "block text-xs font-medium uppercase tracking-wide text-ink-mute";
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -31,90 +37,84 @@ export default async function DashboardPage({
   ]);
 
   return (
-    <div className="space-y-10">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="space-y-12">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-bold tracking-tight text-ink-strong">
+          Dashboard
+        </h1>
+        <div className="h-px w-12 bg-accent opacity-50" />
+        <p className="pt-2 text-sm text-ink-mute">
           Last 50 events across all ventures, plus manual event creation.
         </p>
       </header>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-ink-mute">
           Create event
         </h2>
-        <form
-          action={createEventAction}
-          className="grid gap-3 rounded-md border border-border bg-muted/20 p-4 md:grid-cols-2"
-        >
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              Source
-            </span>
-            <input
-              name="source"
-              required
-              maxLength={64}
-              defaultValue="manual"
-              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              Type
-            </span>
-            <input
-              name="type"
-              required
-              maxLength={64}
-              placeholder="e.g. note, decision, meeting"
-              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              Venture (optional)
-            </span>
-            <select
-              name="venture"
-              defaultValue=""
-              className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
-            >
-              <option value="">— none —</option>
-              {ventures.map((v) => (
-                <option key={v.id} value={v.slug}>
-                  {v.name} ({v.slug})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1 md:col-span-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              Payload (JSON, optional)
-            </span>
+        <form action={createEventAction} className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1">
+              <span className={labelClass}>Source</span>
+              <input
+                name="source"
+                required
+                maxLength={64}
+                defaultValue="manual"
+                className={inputClass}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className={labelClass}>Type</span>
+              <input
+                name="type"
+                required
+                maxLength={64}
+                placeholder="e.g. note, decision, meeting"
+                className={inputClass}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className={labelClass}>Venture (optional)</span>
+              <select
+                name="venture"
+                defaultValue=""
+                className={inputClass}
+              >
+                <option value="">— none —</option>
+                {ventures.map((v) => (
+                  <option key={v.id} value={v.slug}>
+                    {v.name} ({v.slug})
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="block space-y-1">
+            <span className={labelClass}>Payload (JSON, optional)</span>
             <textarea
               name="payload"
               rows={3}
               placeholder='{"note": "..."}'
-              className="block w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs shadow-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+              className="block w-full border border-rule-strong bg-paper-card px-3 py-2 font-mono text-sm text-ink outline-none transition-[border-color] duration-[80ms] placeholder:text-ink-faint focus:border-accent focus:outline-none"
             />
           </label>
-          <div className="flex items-center justify-between md:col-span-2">
-            <p className="text-xs text-muted-foreground">
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-xs">
               {created && (
-                <span className="text-foreground">
+                <span className="text-ink">
                   Event {created.slice(0, 8)} created.
                 </span>
               )}
               {error && (
-                <span className="text-destructive">
+                <span className="text-negative">
                   {ERROR_MESSAGES[error] ?? "Something went wrong."}
                 </span>
               )}
             </p>
             <button
               type="submit"
-              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="bg-ink-strong px-4 py-2 text-base font-medium text-paper-card transition-opacity duration-[80ms] hover:opacity-85 active:opacity-70"
             >
               Create event
             </button>
@@ -123,7 +123,7 @@ export default async function DashboardPage({
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-ink-mute">
           Recent events
         </h2>
         <EventsTable events={events} />
