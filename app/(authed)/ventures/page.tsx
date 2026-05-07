@@ -1,8 +1,17 @@
 import Link from "next/link";
 
 import { PhaseBadge } from "@/components/phase-badge";
+import { StateDot, VentureMark } from "@/components/venture";
 import { filterVisibleVentures, requireUserContext } from "@/lib/auth/guard";
 import { listVentures } from "@/lib/db/ventures";
+
+// Map venture phase -> StateDot state. discovery + dormant read as
+// quiet; build/launch are active; scale is idle (steady-state).
+function phaseToStateDot(phase: string): "active" | "idle" | "quiet" {
+  if (phase === "build" || phase === "launch") return "active";
+  if (phase === "scale") return "idle";
+  return "quiet";
+}
 
 export const metadata = {
   title: "Ventures — SoloDesk",
@@ -49,8 +58,20 @@ export default async function VenturesPage() {
             <li key={v.id} className="border-b border-rule">
               <Link
                 href={`/ventures/${v.slug}`}
-                className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-3 py-3 transition-colors duration-[80ms] hover:bg-paper-card"
+                className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center gap-4 px-3 py-3 transition-colors duration-[80ms] hover:bg-paper-card"
               >
+                <span style={{ color: v.accent_color }} className="shrink-0">
+                  <VentureMark
+                    slug={v.mark_slug}
+                    size={22}
+                    accentColor={v.accent_color}
+                  />
+                </span>
+                <StateDot
+                  state={phaseToStateDot(v.phase)}
+                  accentColor={v.accent_color}
+                  ariaLabel={`${v.name} ${phaseToStateDot(v.phase)}`}
+                />
                 <div className="min-w-0 space-y-0.5">
                   <p className="truncate text-base font-medium text-ink">
                     {v.name}

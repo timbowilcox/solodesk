@@ -1,0 +1,44 @@
+feat(sprint-7): identity-preview showcase + apply marks/dots to /ventures
+
+Showcase route /admin/identity-preview (admin-only via
+requireAdminContext from team-inbound substrate). Renders all six
+ventures plus a synthetic generic-fallback row, with all five
+identity components, in BOTH light and dark mode side-by-side.
+Edge-case panel for Sparkline at the top of each panel shows
+empty / single point / flat / all-zero / negative.
+
+Per-venture grid pulls live ventures rows. Each row renders the
+mark at three sizes (16, 22, 34) so the legibility-at-16px
+requirement is visually verifiable. StateDot rendered in all three
+states. Two ConnectionChip examples per row.
+
+The dark-mode panel is wrapped in a `dark` class to flip globals.css
+custom properties — the only place in the app where a single page
+intentionally renders in both themes simultaneously.
+
+/ventures listing refactored to consume the new components:
+- VentureMark (size 22) prepended to each row, accent flowing in
+  via accent_color
+- StateDot mapped from venture.phase (build/launch=active,
+  scale=idle, discovery/dormant=quiet)
+- PhaseBadge retained as the existing semantic badge
+
+/portfolio NOT modified — current page lists portfolio-audit
+Documents, not ventures. There's no inline mark/dot to refactor.
+Sprint 8 (Bridge) will rebuild /portfolio as the venture canvas;
+that's where the venture-identity surface for portfolio lives.
+
+Tests:
+- tests/components/venture/sparkline.test.tsx (8 tests). Covers
+  empty / single point / flat / all-zero / negative / standard
+  ascending / accent style / custom dimensions. Uses
+  renderToStaticMarkup, no DOM library required.
+- vitest.config.ts include extended to .test.tsx so JSX tests run.
+
+Quality:
+- pnpm typecheck clean
+- pnpm lint clean
+- 58 tests pass (8 new for sparkline)
+- pnpm build clean — /admin/identity-preview registered
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
