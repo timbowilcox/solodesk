@@ -102,6 +102,28 @@
       animation-iteration-count: 1 !important;
     }
   }
+
+  /* StateDot — the one allowed pulsing element on the Bridge, per
+     design-system venture-identity + ambient-motion sections. Status
+     indicator, not a loading reveal — distinct from the banned
+     "pulsing orbs / thinking… reveals" anti-pattern. */
+  @keyframes state-dot-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  .state-dot-active {
+    animation: state-dot-pulse 2.2s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .state-dot-active {
+      animation: none;
+    }
+  }
 }
 
 /* ==========================================================================
