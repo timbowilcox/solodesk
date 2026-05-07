@@ -142,6 +142,21 @@ export type ContentBlockContent = {
   cta?: string;
 };
 
+export type IntelSignal = {
+  source?: string;
+  observation: string;
+  severity: "low" | "medium" | "high";
+  tag: "threat" | "opportunity" | "noise";
+  suggested_action:
+    | "continue_monitoring"
+    | "surface_to_strategy"
+    | "kill"
+    | "escalate";
+  reasoning?: string;
+};
+
+export type IntelSignalsTableContent = { signals: IntelSignal[] };
+
 export type SectionSeed =
   | { kind: "prose"; content: ProseContent }
   | { kind: "recommendation"; content: RecommendationContent }
@@ -151,7 +166,8 @@ export type SectionSeed =
   | { kind: "risk"; content: RiskContent }
   | { kind: "agent_note"; content: AgentNoteContent }
   | { kind: "metric_block"; content: MetricBlockContent }
-  | { kind: "content_block"; content: ContentBlockContent };
+  | { kind: "content_block"; content: ContentBlockContent }
+  | { kind: "intel_signals_table"; content: IntelSignalsTableContent };
 
 export type CreateDocumentInput = {
   ventureId: string;
