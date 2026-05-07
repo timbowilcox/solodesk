@@ -88,7 +88,7 @@ export function VentureBridge({ venture, functionState }: VentureBridgeProps) {
           icon={Compass}
           label="Strategy"
           stateLine={functionState.strategy}
-          href={`/ventures/${venture.slug}/decisions`}
+          href={`/ventures/${venture.slug}/strategy`}
         />
         <FunctionTile
           icon={ChartLine}
