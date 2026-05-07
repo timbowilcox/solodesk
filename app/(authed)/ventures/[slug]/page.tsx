@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
 import { EventsTable } from "@/components/events-table";
 import { Markdown } from "@/components/markdown";
 import { PhaseBadge } from "@/components/phase-badge";
+import { requireVentureAccess } from "@/lib/auth/guard";
 import { listRecentEvents } from "@/lib/db/events";
 import { getVentureBySlug } from "@/lib/db/ventures";
 
@@ -26,8 +26,7 @@ export default async function VenturePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const venture = await getVentureBySlug(slug);
-  if (!venture) notFound();
+  const { venture } = await requireVentureAccess(slug);
 
   const events = await listRecentEvents({ ventureId: venture.id, limit: 50 });
 
@@ -108,6 +107,12 @@ export default async function VenturePage({
             className="text-accent underline-offset-2 hover:underline"
           >
             Connections
+          </Link>
+          <Link
+            href={`/ventures/${venture.slug}/settings/members`}
+            className="text-accent underline-offset-2 hover:underline"
+          >
+            Members
           </Link>
         </nav>
       </header>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { requireAdminContext } from "@/lib/auth/guard";
 import {
   auditDateKey,
   listPortfolioAudits,
@@ -32,6 +33,8 @@ export default async function PortfolioPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireAdminContext();
+
   const sParams = await searchParams;
   const error = typeof sParams.error === "string" ? sParams.error : null;
 

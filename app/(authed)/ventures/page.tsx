@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { PhaseBadge } from "@/components/phase-badge";
+import { filterVisibleVentures, requireUserContext } from "@/lib/auth/guard";
 import { listVentures } from "@/lib/db/ventures";
 
 export const metadata = {
@@ -8,7 +9,9 @@ export const metadata = {
 };
 
 export default async function VenturesPage() {
-  const ventures = await listVentures();
+  const user = await requireUserContext();
+  const allVentures = await listVentures();
+  const ventures = await filterVisibleVentures(allVentures, user);
 
   return (
     <div className="space-y-8">

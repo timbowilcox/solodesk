@@ -249,6 +249,28 @@ type CommentsInsert = {
 
 type CommentsUpdate = Partial<CommentsInsert>;
 
+export type VentureMemberRole = "operator" | "editor" | "viewer";
+
+type VentureMembersRow = {
+  id: string;
+  venture_id: string;
+  user_id: string;
+  role: VentureMemberRole;
+  created_by: string | null;
+  created_at: string;
+};
+
+type VentureMembersInsert = {
+  id?: string;
+  venture_id: string;
+  user_id: string;
+  role?: VentureMemberRole;
+  created_by?: string | null;
+  created_at?: string;
+};
+
+type VentureMembersUpdate = Partial<VentureMembersInsert>;
+
 export type ConnectionAction =
   | "fetched"
   | "rotated"
@@ -490,6 +512,12 @@ export type Database = {
         Row: ConnectionAuditRow;
         Insert: ConnectionAuditInsert;
         Update: ConnectionAuditUpdate;
+        Relationships: NoRelationships;
+      };
+      venture_members: {
+        Row: VentureMembersRow;
+        Insert: VentureMembersInsert;
+        Update: VentureMembersUpdate;
         Relationships: NoRelationships;
       };
       venture_chunks: {
