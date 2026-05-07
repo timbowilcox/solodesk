@@ -126,6 +126,14 @@ export async function listCommentsForSections(
 // Mutations
 // --------------------------------------------------------------
 
+export type MetricBlockMetric = {
+  label: string;
+  value: string;
+  delta?: string;
+  severity?: "positive" | "caution" | "negative" | "neutral";
+};
+export type MetricBlockContent = { metrics: MetricBlockMetric[] };
+
 export type SectionSeed =
   | { kind: "prose"; content: ProseContent }
   | { kind: "recommendation"; content: RecommendationContent }
@@ -133,7 +141,8 @@ export type SectionSeed =
   | { kind: "kill_criteria"; content: KillCriteriaContent }
   | { kind: "evidence"; content: EvidenceContent }
   | { kind: "risk"; content: RiskContent }
-  | { kind: "agent_note"; content: AgentNoteContent };
+  | { kind: "agent_note"; content: AgentNoteContent }
+  | { kind: "metric_block"; content: MetricBlockContent };
 
 export type CreateDocumentInput = {
   ventureId: string;

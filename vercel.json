@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/embeddings",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-digest",
+      "schedule": "0 20 * * *"
     }
   ]
 }

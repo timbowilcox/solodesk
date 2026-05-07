@@ -62,6 +62,12 @@ export default async function VenturePage({
         )}
         <nav className="flex gap-6 pt-2 text-sm">
           <Link
+            href={`/ventures/${venture.slug}/digests`}
+            className="text-accent underline-offset-2 hover:underline"
+          >
+            Digests
+          </Link>
+          <Link
             href={`/ventures/${venture.slug}/decisions`}
             className="text-accent underline-offset-2 hover:underline"
           >
