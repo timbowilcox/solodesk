@@ -105,6 +105,34 @@ export async function getDocumentWithSections(opts: {
   return { document: doc, sections: sections ?? [] };
 }
 
+/**
+ * Fetch a portfolio-scope Document (venture_id IS NULL). Used by Loop 11
+ * — the deliberate exception to venture-scoped Documents. Will not return
+ * any venture-scoped document, even if its id matches.
+ */
+export async function getPortfolioDocumentWithSections(opts: {
+  documentId: string;
+}): Promise<{ document: DocumentRow; sections: SectionRow[] } | null> {
+  const supabase = createSupabaseAdminClient();
+  const { data: doc, error: docError } = await supabase
+    .from("documents")
+    .select("*")
+    .eq("id", opts.documentId)
+    .is("venture_id", null)
+    .maybeSingle();
+  if (docError || !doc) return null;
+  const { data: sections, error: secError } = await supabase
+    .from("sections")
+    .select("*")
+    .eq("document_id", opts.documentId)
+    .order("ord", { ascending: true });
+  if (secError) {
+    console.error("[documents] portfolio section list failed", secError.message);
+    return { document: doc, sections: [] };
+  }
+  return { document: doc, sections: sections ?? [] };
+}
+
 export async function listCommentsForSections(
   sectionIds: string[],
 ): Promise<CommentRow[]> {

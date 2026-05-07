@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/daily-digest",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/portfolio-audit",
+      "schedule": "0 21 * * 0"
     }
   ]
 }

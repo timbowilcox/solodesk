@@ -125,7 +125,8 @@ export type DocumentType =
   | "intel_digest"
   | "support_ticket"
   | "daily_digest"
-  | "triage_queue";
+  | "triage_queue"
+  | "portfolio_audit";
 
 export type DocumentStatus =
   | "draft"
@@ -162,7 +163,7 @@ export type CommentStatus = "open" | "accepted" | "dismissed" | "replied";
 
 type DocumentsRow = {
   id: string;
-  venture_id: string;
+  venture_id: string | null;
   type: DocumentType;
   title: string;
   status: DocumentStatus;
@@ -175,7 +176,7 @@ type DocumentsRow = {
 
 type DocumentsInsert = {
   id?: string;
-  venture_id: string;
+  venture_id: string | null;
   type: DocumentType;
   title: string;
   status?: DocumentStatus;
