@@ -63,6 +63,15 @@ type WaitlistSignupsInsert = {
 
 type WaitlistSignupsUpdate = Partial<WaitlistSignupsInsert>;
 
+export type VentureMarkSlug =
+  | "kounta"
+  | "corum"
+  | "counsel"
+  | "canemate"
+  | "realstyler"
+  | "realtelligence"
+  | "generic";
+
 type VenturesRow = {
   id: string;
   slug: string;
@@ -72,6 +81,8 @@ type VenturesRow = {
   company_md: string | null;
   loops_enabled: Json;
   intel_sources: Json;
+  accent_color: string;
+  mark_slug: VentureMarkSlug;
   created_at: string;
   updated_at: string;
 };
@@ -85,6 +96,8 @@ type VenturesInsert = {
   company_md?: string | null;
   loops_enabled?: Json;
   intel_sources?: Json;
+  accent_color?: string;
+  mark_slug?: VentureMarkSlug;
   created_at?: string;
   updated_at?: string;
 };
