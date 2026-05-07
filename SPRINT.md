@@ -1,103 +1,128 @@
-# Sprint 9 — The Watch + The Day (ambient surfaces)
+# Sprint 10 — Streaming Sections + Loop 1 conversation
 
 **Date:** 2026-05-07
 **Repo:** solodesk
-**Phase:** Experience layer (3 of 5)
-**Spec:** `/.claude/sprints/sprint-9-watch-day.md`
-**Estimated build sessions:** 2-3
+**Phase:** Experience layer (4 of 5)
+**Spec:** `/.claude/sprints/sprint-10-streaming-sections.md`
+**Estimated build sessions:** 3-4
 
 ## Scope
 
-Two surfaces that make the Bridge feel alive:
+Largest sprint of the phase. Three substrate pieces and two surfaces:
 
-1. **The Watch** — persistent right-rail feed on `/` and `/ventures/[slug]`. Subscribes to the `events` table via Supabase realtime, scoped to the user's visible ventures. Renders entries newest-first with venture color dot + timestamp + venture name + narrative. Per-venture filter when on `/ventures/[slug]`. Throttled batch render when more than 5 events arrive in 1s. New entries fade in 700ms ease-out per the design-system ambient-motion vocabulary.
+1. **Document `drafting` / `cancelled` / `drafting_orphaned` states.** The schema enum extends. `bridge_tiles`'s "active" derivation (Sprint 8) updates to include drafting documents.
 
-2. **The Day** — new route `/day`. Curated finite list of items that need operator attention: pending-review documents, open agent_note sections, recent open anomalies, stale draft decisions, new support tickets. Sorted by priority (decisions > agent_notes > anomalies > inbound). Cap at 30 items. Each item dismissible via click; dismissal expires at next 06:00 local time. Empty state: "All clear. The day is closed."
+2. **Loop output protocol.** A simple line-prefixed format the agent emits:
+   ```
+   ###section: recommendation
+   ...prose...
+   ###section: evidence
+   ...prose...
+   ###comment: section=recommendation, ref=memory:abc
+   ...critic comment...
+   ###done
+   ```
+   `lib/loops/parser.ts` is a streaming state machine: scan tokens for `###` line prefixes, accumulate Section bodies between markers, emit typed events (`section_start`, `section_token`, `section_end`, `comment_added`, `done`). This is the single source of truth for Loop output structure — output that doesn't parse is rejected, not coerced (per CLAUDE.md streaming rule).
 
-The Bridge / Day toggle in the chrome (currently disabled placeholder from Sprint 8) gets wired up: Bridge is `/`, Day is `/day`.
+3. **Streaming runner.** `lib/loops/runner.ts` orchestrates: creates the `loop_runs` row, calls the Anthropic streaming SDK, feeds tokens through the parser, persists each Section as it closes, supports cancellation via a per-run flag in the DB.
+
+4. **SSE endpoint.** `POST /api/loops/[loopId]/invoke` returns `text/event-stream`. Wraps the runner. On client disconnect, server completes idempotently and saves the Document (state: `drafting_orphaned` if critic hasn't finished). `POST /api/loops/runs/[runId]/cancel` sets a cancel flag the runner polls.
+
+5. **Streaming Document view.** `components/document/StreamingDocument.tsx` (client) subscribes to SSE for a Document in `state='drafting'`, renders Sections with skeleton placeholders that fill in token-by-token, shows critic comments anchored to Sections after agent finishes. Pause / Cancel buttons.
+
+6. **Loop 1 conversation surface.** New route `/ventures/[slug]/strategy`. Conversation thread (operator + agent + critic messages, distinct styling). Operator types question, hits send, agent message streams in. When agent crystallizes to a Decision Document, the Document streams inline in the thread.
 
 **Substitutions and deviations from spec:**
 
-- **Migration number bump.** Spec calls for `0007_day_dismissals.sql`; that slot is taken by `venture_members`. This sprint uses `0010_day_dismissals.sql`.
-- **`documents.status='pending_review'` not in current enum.** Schema has `('draft','reviewing','approved','rejected','published','archived')`. Curation reads `reviewing` as the equivalent of `pending_review`. Documented in `lib/day/curate.ts`.
-- **Stale-decision threshold uses `documents` not `decisions`.** The spec says "decisions in draft state ≥3 days old". `decisions` table is the legacy/queryable surface; the editing surface is `documents` with `type='decision'`. Curation pulls from `documents` so the link points back to the editable record.
-- **Inbound items source.** Spec is vague on what "member-routed" means in v0. Mapped to `support_tickets` with `status='new'` for this sprint. If `inbox` becomes its own table later, swap in.
-- **Realtime subscription tear-down test.** Spec requires "subscriptions tear down on route change." Verified via component cleanup hooks; no leaked-channel test added (would need browser harness — operator-driven during deploy verify).
-- **Phosphor regular** continues from Sprint 8 — no new icon primitives in this sprint, but any added must be Phosphor regular only.
+- **Migration number bump.** Spec calls for `0008_loop_runs.sql`; that slot is taken. Sprint 10 uses `0011_streaming_sections.sql`. (`loop_runs` already exists from Sprint 0.)
+- **Document approval ceremony updated** per CLAUDE.md / experience-layer-doc-updates: Document approval is a single operator action; Section-level state (resolved, agent_note open) enforced at approval time. Already landed in CLAUDE.md in Phase 0 (`88e7a8b`).
+- **Live Loop 1 invocation verification is operator-driven.** The DoD line "Test: invoke Loop 1 with a real strategy question, observe full streaming run end-to-end" requires real Anthropic API spend. The substrate (parser, runner, SSE endpoint, StreamingDocument view) is fully unit-tested in this sprint; the live end-to-end test happens on Tim's first invocation post-deploy. Documented in HANDOFF, mirroring Sprint 7's Lighthouse note.
+- **Loop 1 conversation persistence.** Spec is silent on the exact storage schema for conversation threads. Sprint 10 introduces `loop_threads` + `loop_thread_messages` tables (light, append-only). Decision Documents that crystallize from a thread link via `documents.metadata.thread_id`.
+- **Reconnect/checkpoint endpoint** (spec's `/api/loops/runs/[runId]/checkpoint`) deferred to a follow-up in the experience-layer phase. SSE reconnects cleanly because incremental Section persistence means a page reload picks up wherever the run is. The dedicated checkpoint stream-replay path is over-engineered for the current invocation count.
+- **Phosphor regular** continues. No new icon primitives.
 
 ## Acceptance criteria
 
-### The Watch
+### Streaming Sections
 
-- [ ] Visible on `/` (Bridge) and `/ventures/[slug]` (Venture Bridge), right rail
-- [ ] Subscribed to `events` table via Supabase realtime, filtered to visible ventures
-- [ ] New entries appear without page reload, fade-in 700ms ease-out
-- [ ] Newest entries on top, oldest scrolls off (cap visible to ~25 entries)
-- [ ] Each entry: venture color dot (4px), mono timestamp, venture name (bold), narrative line
-- [ ] Per-venture filter: Watch on `/ventures/kounta` shows only Kounta entries
-- [ ] Narration formatter handles all current event types in the events table without throwing; unknown types fall back to "Activity in {venture}"
-- [ ] More than 5 events arriving in 1s batch-render without UI lag (throttle window)
-- [ ] Subscription tears down on component unmount (verified via cleanup function)
+- [ ] Migration `0011_streaming_sections.sql` applies cleanly via Supabase MCP
+- [ ] `documents.status` enum extends to include `drafting`, `cancelled`, `drafting_orphaned`
+- [ ] `bridge_tiles` RPC updated so `state='active'` includes documents in `drafting` (Sprint 8 caveat now resolves)
+- [ ] `lib/loops/parser.ts` is a pure streaming state machine — pushes tokens, emits typed events
+- [ ] Parser handles partial chunks, fenced markers, and malformed input without throwing
+- [ ] `lib/loops/runner.ts` calls `buildAgentPrompt()` (no parallel prompt construction path)
+- [ ] Runner persists each Section incrementally as it closes
+- [ ] Runner respects a `cancel_requested_at` flag set by the cancel endpoint
+- [ ] `POST /api/loops/[loopId]/invoke` returns `text/event-stream`
+- [ ] `POST /api/loops/runs/[runId]/cancel` sets the cancel flag and returns 202
+- [ ] `StreamingDocument` component renders Sections as they arrive with skeleton placeholders
+- [ ] Pause button stops client SSE without affecting server run
+- [ ] Cancel button calls cancel endpoint; resulting Document is `state='cancelled'`
+- [ ] Operator can edit a streamed Section after it completes; edit does not interrupt other Sections still streaming
 
-### The Day
+### Loop 1
 
-- [ ] `/day` route reachable on `app.solodesk.ai`, gated by auth
-- [ ] Shows ≤30 items sorted by priority (decisions > agent_notes > anomalies > inbound)
-- [ ] Each item: VentureStripe + checkbox + small VentureMark + venture name + title + source line
-- [ ] Member with 2 assigned ventures sees only items from those 2 ventures
-- [ ] Click on item toggles dismissed state (visible strikethrough + faded)
-- [ ] Dismissed state persists across page reload
-- [ ] Dismissed state resets at next 06:00 local time (next-day picks up still-pending items)
-- [ ] Empty state shows when no items remain: "All clear. The day is closed."
-- [ ] Bridge / Day toggle in chrome wires Day to `/day`
+- [ ] `/ventures/[slug]/strategy` route reachable
+- [ ] Thread persistence via `loop_threads` + `loop_thread_messages`
+- [ ] Operator can type a question and hit send
+- [ ] Agent message streams into the thread
+- [ ] When agent emits Sections, an inline Document card appears in the thread streaming the Document
+- [ ] Critic comments arrive after agent completes, anchored to Sections
+- [ ] Operator can approve / reject the Document from the inline view
+- [ ] Conversation history persists; navigating away and returning shows prior messages
+
+### Cross-cutting
+
+- [ ] `buildAgentPrompt({ streaming: true })` returns the parser-ready stream wrapper
+- [ ] All existing non-streaming Loop call sites continue to work unchanged
+- [ ] No console errors on a full streaming run
+- [ ] Watch narrates Loop 1 events as they happen (`document.created`, `document.section_streamed`, `agent_note.opened`, `loop.invoked`, `loop.succeeded`)
 
 ## Definition of done
 
-- [ ] All acceptance criteria checked with proof
-- [ ] Migration `0010_day_dismissals.sql` applied to dev Supabase
-- [ ] `lib/watch/narrate.ts` is a pure function with unit tests covering all event types + unknown fallback
-- [ ] `lib/day/curate.ts` is a pure function with unit tests covering each item type and the priority sort
-- [ ] Realtime subscription tear-down verified via cleanup function (manual verification documented in HANDOFF)
+- [ ] All AC checked with proof (unit tests for substrate; operator-driven live invocation post-deploy noted in HANDOFF)
+- [ ] SSE event types are a discriminated union; no `any` in handlers
+- [ ] Cancelled runs leave Document in `state='cancelled'` (queryable but excluded from active counts)
 - [ ] HANDOFF.md committed (root + archive)
 - [ ] All work committed with conventional-commit messages
-- [ ] `pnpm typecheck` clean, `pnpm lint` clean, `pnpm test` clean, `pnpm build` clean
-- [ ] Adversarial check questions answered in HANDOFF
+- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all clean
 
 ## Quality rubric
 
 | Criterion | What to check |
 |-----------|---------------|
-| Bright line: venture isolation | Watch and Day filter by membership-derived venture set. Cannot leak across ventures |
-| Realtime hygiene | Supabase channel created in useEffect; unsubscribed in cleanup. No subscriptions outlive the component |
-| Pure narration | `narrate.ts` is a pure function with unit tests. No DB calls inside |
-| Pure curation | `curate.ts` derives the list from input rows. No state held outside the function |
-| Throttle behavior | Burst of >5 events within 1s batches into a single render |
-| Dismissal persistence | `day_item_dismissals` rows scoped to `user_id`. Cannot dismiss other users' items via shared payload |
-| Bright line: observation vs communication | Watch entries are read-only — no auto-action. Day item dismissal is operator action, not auto-action. Internal Loop activity surfaces as observation |
-| TypeScript | No `any`. Event types and item types are discriminated unions |
+| Bright line: every loop through `buildAgentPrompt` | Streaming runner calls `buildAgentPrompt()`. No parallel prompt construction path |
+| Bright line: typed Sections | Parser only emits Sections whose kind is in the existing enum. Output that doesn't parse is rejected, not coerced |
+| Bright line: comments anchored to Sections with evidence | Every emitted comment includes a `section_id` reference and an evidence pointer; no global comments |
+| Incremental persistence | Runner saves each Section to the DB as it closes (verified via unit test on the runner's persistence hook) |
+| Idempotent server run | Hitting the cancel endpoint twice doesn't double-cancel; client disconnect doesn't kill the server run |
+| Streaming hygiene | SSE endpoint cleans up on client abort. No leaked AbortController references |
+| TypeScript | SSE event types and parser events are discriminated unions. No `any` |
+| Error surfacing | Anthropic rate-limit, parser malformation, network error all surface to the operator (not silent failure) |
 
-**Score threshold:** Must pass 7/8. Venture isolation, realtime hygiene, and observation-vs-communication are non-negotiable.
+**Score threshold:** Must pass 7/8. The three bright-line criteria are non-negotiable.
 
 ## Out of scope
 
-- Cross-day persistence beyond current day's dismissal state
-- Smart curation (rules-based only — no ML, no LLM in curate path)
-- Full inbox view for >30 items (footer link only, future sprint)
-- Watch entry click-through to source Document (future sprint)
-- Manual Watch entry composition
-- Day item reordering or pinning
-- Email/Slack notifications for Day items
-- Mobile-optimized Watch (right rail only on desktop ≥lg breakpoint)
-- Realtime debug overlay (operator-driven verification only)
+- Voice input on the conversation thread
+- Multi-user concurrent edit on a streaming Document
+- Real-time collaboration cursors
+- Streaming critic-of-critic (one critic pass only)
+- Branching conversation threads in Loop 1
+- Conversation export / share
+- Conversation thread search
+- SSE checkpoint/replay endpoint (page-reload picks up incremental state instead)
+- Token-by-token client-side typewriter rendering with throttling — for v1 we render Section content as it arrives in chunks; per-token CSS animation is polish, not required by AC
 
 ## Adversarial check questions (to be answered in HANDOFF)
 
-- What if events table fires 100 events at once? Expected: throttled rendering, no UI freeze
-- What if a member has no assigned ventures? Expected: both surfaces show "all quiet" / "all clear" empty state, not crash
-- Do Watch entries respect venture isolation? Expected: members cannot see events from ventures they cannot access — verified at the realtime filter layer
-- What if narration formatter encounters an unknown event_type? Expected: falls back to "Activity in {venture}" — does not throw
-- Does dismissed state leak between users? Expected: no — dismissals scoped to `user_id` with explicit filter
-- What happens to The Day at 06:00 local? Expected: dismissed items reappear if still pending; next page load picks up
-- What if a Document is approved between when The Day was rendered and when the operator reads it? Expected: item is no longer in the curation result on next render
-- Does the Watch handle Supabase realtime disconnect? Expected: Supabase client auto-reconnects with backoff; no extra logic needed in this sprint
-- Does the Watch render correctly when scrolled mid-stream by a new entry? Expected: new entries prepend; scroll position preserved unless at top
+- What if the agent stalls mid-Section? Expected: visible "stalled" indicator on the Section after 30s of silence; operator can cancel the run
+- What if the user navigates away mid-stream? Expected: Document saved in DB up to the last completed Section; status `drafting_orphaned` if critic hasn't finished. Returning to the route resumes from DB state
+- What if the critic disagrees on every Section? Expected: each Section gets an `agent_note` Section appended; Document holds in `reviewing` until operator resolves. No stuck state
+- What if the network drops mid-SSE? Expected: client refetches via page reload; server completes the run idempotently; partial Document is in DB
+- What if the operator edits a Section while another Section is still streaming? Expected: edit applies to that Section (writes to DB); other Sections continue streaming. No conflict
+- What if Loop 1 produces no Document (just a conversation that doesn't crystallize)? Expected: thread persists; no Document created. Documented behavior
+- What if multiple operators in same venture invoke Loop 1 simultaneously? Expected: each gets their own thread (`loop_threads.user_id` keyed per operator). No cross-pollination
+- Does the streaming endpoint enforce membership scoping? Expected: yes — `ventureId` from URL must match operator's membership via `requireVentureAccess`
+- Does the Watch reflect Loop 1 activity? Expected: yes — runner inserts `loop.invoked`, `document.created`, `document.section_streamed`, `agent_note.opened`, `loop.succeeded` events; Watch's narrate formatter (Sprint 9) handles all of them
+- Does the parser reject non-protocol output? Expected: yes — characters before the first `###section:` are dropped; unrecognised `###` directives raise a parser error event
