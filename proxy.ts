@@ -6,16 +6,26 @@ import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware";
 
 const APP_PUBLIC_PATHS = ["/login", "/auth"];
 const APP_PUBLIC_API_PREFIXES = ["/api/webhooks", "/api/cron"];
-const LANDING_ALLOWED_PATHS = new Set<string>(["/", "/api/waitlist"]);
+// Landing host serves only `/` (waitlist signup) and `/api/waitlist`.
+// `/` rewrites internally to `/welcome` because Sprint 8 needs `/` to
+// mean the Bridge on the app host. The internal `/welcome` slug is never
+// exposed in the URL bar.
+const LANDING_INTERNAL_LANDING_PATH = "/welcome";
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const kind = hostKind(request);
 
   if (kind === "landing") {
-    if (LANDING_ALLOWED_PATHS.has(path)) {
+    if (path === "/") {
+      const url = request.nextUrl.clone();
+      url.pathname = LANDING_INTERNAL_LANDING_PATH;
+      return NextResponse.rewrite(url);
+    }
+    if (path === "/api/waitlist") {
       return NextResponse.next();
     }
+    // Direct hits on /welcome (or any other non-allowed path) redirect to /.
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";
@@ -57,12 +67,9 @@ export async function proxy(request: NextRequest) {
 
   void touchLastLogin(user.email);
 
-  if (path === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    url.search = "";
-    return NextResponse.redirect(url, 302);
-  }
+  // Sprint 8: / on the app domain is now the Bridge (the operator's home).
+  // The historic /dashboard route 308-redirects to / — see
+  // /app/(authed)/dashboard/page.tsx. No middleware redirect needed.
 
   return response();
 }

@@ -10,7 +10,7 @@ import { signOutAction } from "@/app/(authed)/actions";
 type NavItem = { href: string; label: string };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard" },
+  { href: "/", label: "Bridge" },
   { href: "/ventures", label: "Ventures" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/events", label: "Events" },
@@ -21,15 +21,19 @@ export function AppSidebar({ email }: { email: string }) {
   const pathname = usePathname();
   return (
     <aside className="flex w-[220px] shrink-0 flex-col bg-paper px-4 py-8">
-      <Link href="/dashboard" className="mb-8 block">
+      <Link href="/" className="mb-8 block">
         <span className="font-mono text-sm tracking-tight text-ink-strong">
           SoloDesk
         </span>
       </Link>
       <nav className="flex flex-col">
         {NAV_ITEMS.map((item) => {
+          // "/" must match exactly; other items match prefix
           const active =
-            pathname === item.href || pathname.startsWith(`${item.href}/`);
+            item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href ||
+                pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}

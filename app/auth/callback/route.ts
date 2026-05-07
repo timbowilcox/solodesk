@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = searchParams.get("next") ?? "/";
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=invalid_link`);
@@ -19,6 +19,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=invalid_link`);
   }
 
-  const safeNext = next.startsWith("/") ? next : "/dashboard";
+  const safeNext = next.startsWith("/") ? next : "/";
   return NextResponse.redirect(`${origin}${safeNext}`);
 }
