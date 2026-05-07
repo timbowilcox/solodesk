@@ -446,6 +446,30 @@ type LoopRunsInsert = {
 
 type LoopRunsUpdate = Partial<LoopRunsInsert>;
 
+export type DayItemType =
+  | "document"
+  | "agent_note"
+  | "anomaly"
+  | "support_ticket";
+
+type DayItemDismissalsRow = {
+  id: string;
+  user_id: string;
+  item_type: DayItemType;
+  item_id: string;
+  dismissed_at: string;
+};
+
+type DayItemDismissalsInsert = {
+  id?: string;
+  user_id: string;
+  item_type: DayItemType;
+  item_id: string;
+  dismissed_at?: string;
+};
+
+type DayItemDismissalsUpdate = Partial<DayItemDismissalsInsert>;
+
 export type Database = {
   public: {
     Tables: {
@@ -531,6 +555,12 @@ export type Database = {
         Row: VentureMembersRow;
         Insert: VentureMembersInsert;
         Update: VentureMembersUpdate;
+        Relationships: NoRelationships;
+      };
+      day_item_dismissals: {
+        Row: DayItemDismissalsRow;
+        Insert: DayItemDismissalsInsert;
+        Update: DayItemDismissalsUpdate;
         Relationships: NoRelationships;
       };
       venture_chunks: {
