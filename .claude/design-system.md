@@ -210,6 +210,79 @@ The dark paper is *warm dark* — closer to the colour of dark walnut or deep ox
 
 ---
 
+## Venture identity system
+
+Every venture has visual identity components defined in `/components/venture/`. No inline rendering of these elsewhere — surfaces import from the venture identity module.
+
+### Venture marks
+
+Six geometric SVG marks, one per venture, plus a generic fallback. Each mark uses `currentColor` so accent flows from parent. Defined as data in `/lib/venture/marks.ts`, not as React components.
+
+Sizes used:
+- 16px — in The Watch entries, in The Day items
+- 22px — on Bridge tiles
+- 34px — on Venture Bridge header
+
+### Venture accent colors
+
+Stored on `ventures.accent_color` (hex format). Six current values:
+- Kounta: `#3B6D11` (forest green — financial)
+- Corum: `#185FA5` (board navy — governance)
+- Counsel: `#A32D2D` (heritage red — family)
+- CaneMate: `#633806` (sugarcane amber — agricultural)
+- RealStyler: `#993C1D` (terracotta — property)
+- Realtelligence: `#2C2C2A` (print charcoal — publishing)
+
+Accents apply to: marks, Sparklines, Watch entry dots, Day item stripes, Venture Bridge header.
+
+Accents do not apply to: chrome, text, primary surfaces. SoloDesk's own palette governs chrome.
+
+### Sparkline component
+
+8-data-point line chart, ~70x18px, single stroke colored by venture accent. Used on Bridge tiles only in v1. Edge cases: flat data renders centered horizontal line; single point renders centered dot; negative values are min-max normalized.
+
+### State dot
+
+3 states: active (pulses 2.2s ease-in-out infinite), idle (35% opacity), quiet (20% opacity). Active state is the only animated component on the Bridge in resting state.
+
+### Connection chip
+
+Small mono uppercase pill, first 3 chars of provider name, 0.5px border, neutral palette. Empty connections array shows "none" chip dimmed.
+
+### Venture stripe
+
+Vertical 3px-wide accent bar on left edge of Day items. Full height of the item.
+
+---
+
+## Time-of-day chrome
+
+The Bridge frame has subtle chrome variants based on local time:
+
+- 06:00–12:00 (morning): `--chrome-tone: warm` — slightly warmer border on the frame
+- 12:00–18:00 (afternoon): `--chrome-tone: neutral` — default
+- 18:00–06:00 (evening): `--chrome-tone: cool` — slightly cooler border on the frame
+
+Implementation: CSS custom property set on root via JS, updated every minute. Single solid border-color per state — not a gradient.
+
+This is the only chrome-level color shift in SoloDesk. It signals "the day is moving" without flashing or animating.
+
+---
+
+## Ambient motion
+
+Motion design across the experience layer follows three rules:
+
+1. **Slow ease curves.** All transitions 250-900ms, ease-out or ease-in-out. No bouncing, no spring physics. The pacing should read as considered, not snappy.
+
+2. **One animated element at rest.** On any view, only one component animates while idle (typically the active StateDot pulse). Multiple simultaneous animations read as glitchy.
+
+3. **Fade-in for new content.** New Watch entries, new Sections in streaming Documents, and new Day items use 600-700ms ease-out fade-in with 3-4px translateY. Removed content fades out at 250ms ease-in (no translation).
+
+No glow, no neon, no synthwave, no robot voices, no glitch effects, no parallax.
+
+---
+
 ## Iconography
 
 ### The library

@@ -53,6 +53,18 @@ This is the catalogue. New kinds get added when a loop genuinely needs one — n
 
 ---
 
+## Streaming Sections
+
+A Document in `state: drafting` renders Sections as they stream in from the Loop. Section appears immediately as a typed skeleton, then content streams token-by-token at 30-50 tokens/sec. State pill per Section visible during stream: `drafting → ready → critic_reviewing → resolved`.
+
+Critic comments arrive after agent finishes all Sections, anchored to specific Sections with evidence pointers. Comments render as margin annotations on desktop; collapse to inline expandable on narrow viewports.
+
+Operator can edit a Section after it streams in. Edit does not interrupt other Sections still being written. Edits are auto-saved.
+
+Operator can pause client SSE (server completes anyway, idempotent save) or cancel the server run (kills the run, leaves Document in `state: cancelled`).
+
+---
+
 ## Comments
 
 Comments are inline conversations anchored to a Section. They're the bandwidth Tim uses to give judgment without rewriting the agent's output.
