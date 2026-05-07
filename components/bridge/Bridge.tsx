@@ -10,17 +10,32 @@
 
 import { TimeOfDayProvider } from "@/components/bridge/TimeOfDayProvider";
 import { VentureTile } from "@/components/bridge/VentureTile";
+import { Watch, type VentureMeta } from "@/components/watch/Watch";
 import type { BridgeTile } from "@/lib/db/bridge";
+import type { EventRow } from "@/lib/watch/realtime";
 
+import { BridgeDayToggle } from "./BridgeDayToggle";
 import { LiveClock } from "./LiveClock";
 
 export type BridgeProps = {
   tiles: BridgeTile[];
   /** Operator email for the small identifier in the chrome. */
   operatorEmail: string;
+  /** Initial Watch snapshot (server-rendered first paint). */
+  initialEvents: EventRow[];
 };
 
-export function Bridge({ tiles, operatorEmail }: BridgeProps) {
+export function Bridge({ tiles, operatorEmail, initialEvents }: BridgeProps) {
+  const ventureIds = tiles.map((t) => t.ventureId);
+  const ventureMeta: Record<string, VentureMeta> = {};
+  for (const t of tiles) {
+    ventureMeta[t.ventureId] = {
+      ventureId: t.ventureId,
+      name: t.name,
+      accentColor: t.accentColor,
+    };
+  }
+
   return (
     <TimeOfDayProvider>
       <div
@@ -36,24 +51,7 @@ export function Bridge({ tiles, operatorEmail }: BridgeProps) {
             <h1 className="text-base font-semibold tracking-tight text-ink-strong">
               SoloDesk
             </h1>
-            <nav
-              aria-label="Bridge view toggle"
-              className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider"
-            >
-              <span
-                aria-current="page"
-                className="border-b-2 border-accent px-1 py-1 text-ink-strong"
-              >
-                Bridge
-              </span>
-              <span
-                aria-disabled="true"
-                title="Available in Sprint 9"
-                className="px-1 py-1 text-ink-faint"
-              >
-                Day
-              </span>
-            </nav>
+            <BridgeDayToggle current="bridge" />
           </div>
           <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-wider text-ink-mute">
             <LiveClock />
@@ -80,17 +78,11 @@ export function Bridge({ tiles, operatorEmail }: BridgeProps) {
             )}
           </section>
 
-          <aside
-            aria-label="The Watch (coming Sprint 9)"
-            className="border border-rule bg-paper-card p-4"
-          >
-            <h2 className="text-xs font-medium uppercase tracking-wide text-ink-mute">
-              The Watch
-            </h2>
-            <p className="pt-3 text-sm text-ink-faint">
-              Ambient activity feed. Available in Sprint 9.
-            </p>
-          </aside>
+          <Watch
+            initialEvents={initialEvents}
+            ventureIds={ventureIds}
+            ventureMeta={ventureMeta}
+          />
         </div>
       </div>
     </TimeOfDayProvider>

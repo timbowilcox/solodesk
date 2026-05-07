@@ -59,6 +59,30 @@ export type ManualEventInput = {
   payload: Json;
 };
 
+/**
+ * Load the initial Watch snapshot — recent events scoped to a set of
+ * venture IDs. Used as the server-side first paint before The Watch
+ * subscribes to realtime.
+ */
+export async function listEventsForVentures(opts: {
+  ventureIds: string[];
+  limit?: number;
+}): Promise<EventRow[]> {
+  if (opts.ventureIds.length === 0) return [];
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .in("venture_id", opts.ventureIds)
+    .order("ts", { ascending: false })
+    .limit(opts.limit ?? 25);
+  if (error) {
+    console.error("[events] listEventsForVentures failed", error);
+    return [];
+  }
+  return data ?? [];
+}
+
 export async function insertManualEvent(input: ManualEventInput) {
   const supabase = createSupabaseAdminClient();
   let ventureId: string | null = null;

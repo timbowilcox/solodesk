@@ -145,6 +145,38 @@
       animation: none;
     }
   }
+
+  /* Watch entry fade-in — 700ms ease-out per ambient-motion vocabulary in
+     design-system.md. Translateys 4px to feel like settling in, not popping. */
+  @keyframes watch-entry-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .watch-entry-fresh {
+    animation: watch-entry-fade-in 700ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .watch-entry-fresh {
+      animation: none;
+    }
+  }
+
+  /* Day item dismiss — 250ms ease-in fade per ambient-motion vocabulary. */
+  .day-item-dismissing {
+    transition: opacity 250ms ease-in, text-decoration-color 250ms ease-in;
+    opacity: 0.4;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .day-item-dismissing {
+      transition: none;
+    }
+  }
 }
 
 /* ==========================================================================
