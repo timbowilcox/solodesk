@@ -147,7 +147,10 @@ export type DocumentStatus =
   | "approved"
   | "rejected"
   | "published"
-  | "archived";
+  | "archived"
+  | "drafting"
+  | "cancelled"
+  | "drafting_orphaned";
 
 export type SectionKind =
   | "prose"
@@ -422,6 +425,8 @@ type LoopRunsRow = {
   budget_cents: number | null;
   model: string | null;
   error_message: string | null;
+  cancel_requested_at: string | null;
+  last_section_ord: number | null;
 };
 
 type LoopRunsInsert = {
@@ -442,6 +447,8 @@ type LoopRunsInsert = {
   budget_cents?: number | null;
   model?: string | null;
   error_message?: string | null;
+  cancel_requested_at?: string | null;
+  last_section_ord?: number | null;
 };
 
 type LoopRunsUpdate = Partial<LoopRunsInsert>;
@@ -469,6 +476,61 @@ type DayItemDismissalsInsert = {
 };
 
 type DayItemDismissalsUpdate = Partial<DayItemDismissalsInsert>;
+
+export type LoopThreadStatus = "open" | "closed" | "archived";
+export type LoopThreadMessageRole =
+  | "operator"
+  | "agent"
+  | "critic"
+  | "document";
+
+type LoopThreadsRow = {
+  id: string;
+  venture_id: string;
+  user_id: string | null;
+  loop_name: string;
+  title: string | null;
+  status: LoopThreadStatus;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+type LoopThreadsInsert = {
+  id?: string;
+  venture_id: string;
+  user_id?: string | null;
+  loop_name: string;
+  title?: string | null;
+  status?: LoopThreadStatus;
+  metadata?: Json;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type LoopThreadsUpdate = Partial<LoopThreadsInsert>;
+
+type LoopThreadMessagesRow = {
+  id: string;
+  thread_id: string;
+  role: LoopThreadMessageRole;
+  body: string;
+  document_id: string | null;
+  loop_run_id: string | null;
+  created_at: string;
+};
+
+type LoopThreadMessagesInsert = {
+  id?: string;
+  thread_id: string;
+  role: LoopThreadMessageRole;
+  body?: string;
+  document_id?: string | null;
+  loop_run_id?: string | null;
+  created_at?: string;
+};
+
+type LoopThreadMessagesUpdate = Partial<LoopThreadMessagesInsert>;
 
 export type Database = {
   public: {
@@ -561,6 +623,18 @@ export type Database = {
         Row: DayItemDismissalsRow;
         Insert: DayItemDismissalsInsert;
         Update: DayItemDismissalsUpdate;
+        Relationships: NoRelationships;
+      };
+      loop_threads: {
+        Row: LoopThreadsRow;
+        Insert: LoopThreadsInsert;
+        Update: LoopThreadsUpdate;
+        Relationships: NoRelationships;
+      };
+      loop_thread_messages: {
+        Row: LoopThreadMessagesRow;
+        Insert: LoopThreadMessagesInsert;
+        Update: LoopThreadMessagesUpdate;
         Relationships: NoRelationships;
       };
       venture_chunks: {
