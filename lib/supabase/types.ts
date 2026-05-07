@@ -668,6 +668,23 @@ export type Database = {
         Args: { p_id: string };
         Returns: void;
       };
+      bridge_tiles: {
+        Args: { p_user_id: string | null; p_is_admin: boolean };
+        Returns: Array<{
+          venture_id: string;
+          slug: string;
+          name: string;
+          phase: VenturePhase;
+          accent_color: string;
+          mark_slug: VentureMarkSlug;
+          state: "active" | "idle" | "quiet";
+          pending_count: number;
+          last_activity_at: string | null;
+          vital_sign: string | null;
+          sparkline: number[];
+          connections: string[];
+        }>;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
