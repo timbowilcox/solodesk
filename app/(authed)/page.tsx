@@ -1,6 +1,7 @@
 import { Bridge } from "@/components/bridge/Bridge";
 import { requireUserContext } from "@/lib/auth/guard";
 import { listBridgeTiles } from "@/lib/db/bridge";
+import { listEventsForVentures } from "@/lib/db/events";
 
 export const metadata = {
   title: "Bridge — SoloDesk",
@@ -8,7 +9,9 @@ export const metadata = {
 
 // The operator's home. Single SQL roundtrip via bridge_tiles RPC, fully
 // server-rendered (no client skeleton flash). Membership scoping happens
-// at the SQL layer — see lib/db/bridge.ts and migration 0009.
+// at the SQL layer — see lib/db/bridge.ts and migration 0009. Initial
+// Watch snapshot is loaded server-side; The Watch then subscribes to
+// realtime on mount.
 export default async function BridgeHomePage() {
   const user = await requireUserContext();
 
@@ -32,5 +35,14 @@ export default async function BridgeHomePage() {
     );
   }
 
-  return <Bridge tiles={result.tiles} operatorEmail={user.email} />;
+  const ventureIds = result.tiles.map((t) => t.ventureId);
+  const initialEvents = await listEventsForVentures({ ventureIds, limit: 25 });
+
+  return (
+    <Bridge
+      tiles={result.tiles}
+      operatorEmail={user.email}
+      initialEvents={initialEvents}
+    />
+  );
 }
