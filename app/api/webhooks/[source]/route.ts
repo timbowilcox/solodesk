@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { hashEvent } from "@/lib/events/hash";
 import { insertEvent } from "@/lib/db/events";
+import { triggerLoop8FromStripe } from "@/lib/loops/loop-8/triggers";
 import { timingSafeEquals } from "@/lib/security/timing-safe";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/types";
@@ -75,5 +76,18 @@ export async function POST(
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
+
+  // Loop 8 reactive: Stripe events on a known event type may trigger an
+  // ad-hoc investigation. Fire-and-forget — webhook ack is independent.
+  if (source === "stripe" && ventureId) {
+    void triggerLoop8FromStripe({
+      ventureId,
+      type,
+      payload: (payload ?? {}) as Json,
+    }).catch((e: unknown) => {
+      console.error("[webhook] loop8 trigger failed", e);
+    });
+  }
+
   return NextResponse.json({ status: "ok", id: result.id }, { status: 200 });
 }
