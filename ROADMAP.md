@@ -225,19 +225,19 @@ Day-to-day operation continues alongside:
 
 ---
 
-## Experience layer phase (Sprints 7-11)
+## Experience layer phase (Sprints 7-11) — **COMPLETE**
 
-Five sprints, target 4-5 weeks. Productisation phase. Builds the surfaces that make the substrate feel like a COO rather than a wiki. See `/.claude/sprints/EXPERIENCE-LAYER-PHASE.md` for the phase overview.
+Five sprints. Productisation phase. Builds the surfaces that make the substrate feel like a COO rather than a wiki. See `/.claude/sprints/EXPERIENCE-LAYER-PHASE.md` for the phase overview and `.archive/handoffs/experience-layer-phase-handoff.md` for the phase summary.
 
-| Sprint | Surface | Spec |
-|--------|---------|------|
-| 7 | Visual venture identity system | sprint-7-visual-identity.md |
-| 8 | The Bridge (portfolio canvas) | sprint-8-bridge.md |
-| 9 | The Watch + The Day (ambient surfaces) | sprint-9-watch-day.md |
-| 10 | Streaming Sections + Loop 1 conversation | sprint-10-streaming-sections.md |
-| 11 | Command bar + Loop 8 reactive | sprint-11-command-loop8-reactive.md |
+| Sprint | Surface | Status | HANDOFF |
+|--------|---------|--------|---------|
+| 7 | Visual venture identity system | shipped | `.archive/handoffs/sprint-7-handoff.md` |
+| 8 | The Bridge (portfolio canvas) | shipped | `.archive/handoffs/sprint-8-handoff.md` |
+| 9 | The Watch + The Day (ambient surfaces) | shipped | `.archive/handoffs/sprint-9-handoff.md` |
+| 10 | Streaming Sections + Loop 1 conversation | shipped (live invocation operator-verified) | `.archive/handoffs/sprint-10-handoff.md` |
+| 11 | Command bar + Loop 8 reactive | shipped (live webhook operator-verified) | `.archive/handoffs/sprint-11-handoff.md` |
 
-Hard prerequisite for Nov 1 productise gate. Phase completion criteria in EXPERIENCE-LAYER-PHASE.md.
+Hard prerequisite for Nov 1 productise gate — **met in code**. Live deploy verification (Loop 1 + Loop 8 webhooks) operator-driven on first deploy. Phase HANDOFF documents operator-load measurement deferred to first-week-after-deploy.
 
 ---
 
