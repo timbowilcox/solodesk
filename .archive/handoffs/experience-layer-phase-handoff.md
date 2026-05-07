@@ -1,232 +1,172 @@
-# Phase Handoff: Experience layer (Sprints 7-11)
+# Phase HANDOFF — Experience layer (Sprints 7-11)
 
 **Date:** 2026-05-07
-**Repo:** solodesk
-**Branch:** `main`
-**Phase span:** Sprints 7-11
+**Repo:** `solodesk`
+**Branch:** `main` at `581aa9f` (ROADMAP close)
+**Phase span:** Sprints 7 → 11
 **Author:** Claude (Opus 4.7) under Tim's harness, marathon directive
 
-This document closes the experience-layer phase. It summarises what shipped, what's deferred to operator deploy verification, and the operator-load measurement plan that finalises the Nov 1 productise gate.
+This HANDOFF closes the experience-layer phase. It is deliberately written to separate **paper state** ("the code exists") from **verified state** ("the behaviour has been observed working") so the next phase is not built on optimism.
 
 Per-sprint detail in:
 
-- `.archive/handoffs/sprint-7-handoff.md` — Visual venture identity system
-- `.archive/handoffs/sprint-8-handoff.md` — The Bridge (portfolio canvas)
-- `.archive/handoffs/sprint-9-handoff.md` — The Watch + The Day (ambient surfaces)
-- `.archive/handoffs/sprint-10-handoff.md` — Streaming Sections + Loop 1 conversation
+- `.archive/handoffs/sprint-7-handoff.md` — Visual venture identity
+- `.archive/handoffs/sprint-8-handoff.md` — The Bridge
+- `.archive/handoffs/sprint-9-handoff.md` — The Watch + The Day
+- `.archive/handoffs/sprint-10-handoff.md` — Streaming Sections + Loop 1
 - `.archive/handoffs/sprint-11-handoff.md` — Command bar + Loop 8 reactive
 
 ---
 
-## Phase summary
+## What shipped (substrate built — paper state)
 
-Five sprints, single marathon session, no scope creep, every bright line preserved.
+Five sprints, single marathon session. The code is committed, the migrations are applied, the routes are registered. No claim is made here that any of it has been exercised end-to-end against real external services.
 
-| Sprint | Surface | Migration | New tests | Quality rubric |
-|---|---|---|---|---|
-| 7 | Visual venture identity (VentureMark, Sparkline, StateDot, ConnectionChip, VentureStripe) | 0008 venture_identity | 8 (Sparkline) | 7.5/8 |
-| 8 | The Bridge (`/`) + Venture Bridge (`/ventures/[slug]`) — single-roundtrip RPC, time-of-day chrome | 0009 bridge_aggregation | 28 (state-derivation + bridge-db) | 8/8 |
-| 9 | The Watch (realtime feed) + The Day (`/day` curated list) — narrate.ts + curate.ts pure | 0010 day_dismissals | 32 (narrate + curate) | 8/8 |
-| 10 | Streaming Sections substrate (parser + runner + SSE endpoints) + Loop 1 conversation (`/strategy`) | 0011 streaming_sections | 14 (parser) | 8/8 |
-| 11 | Command bar (⌘K) + Loop 8 reactive (webhook + threshold + manual) | 0012 anomaly_fingerprints | 23 (router + dedup) | 8/8 |
+### Migrations applied
 
-**Total: 153 tests pass** (previous baseline 50 → end of phase 153). `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all clean at every sprint boundary.
+| # | File | Sprint | Purpose |
+|---|---|---|---|
+| 0008 | `0008_venture_identity.sql` | 7 | venture mark / accent / sparkline columns |
+| 0009 | `0009_bridge_aggregation.sql` | 8 | `bridge_tiles` SQL function for single-roundtrip portfolio query |
+| 0010 | `0010_day_dismissals.sql` | 9 | `day_item_dismissals` table |
+| 0011 | `0011_streaming_sections.sql` | 10 | `documents.status` enum extended (`drafting`, `cancelled`, `drafting_orphaned`); `loop_threads` + `loop_thread_messages` |
+| 0012 | `0012_anomaly_fingerprints.sql` | 11 | `anomaly_fingerprints` table; `AnomalyFingerprintSource` type |
 
-Migrations applied to `bahocpuzgrdtcrulicqz` via Supabase MCP. Phase 0 doc updates already in CLAUDE.md / ROADMAP / design-system.md / decision-document-interface.md (commits `c1e0bb7`, `88e7a8b`, `e771a0c`).
+Five migrations, applied to project `bahocpuzgrdtcrulicqz` via Supabase MCP.
 
----
+### Routes registered (visible in `pnpm build` output, sprint-introduced)
 
-## Surfaces shipped
+- `/` — Bridge (replaced legacy dashboard; `/dashboard` 308s here)
+- `/day` — The Day curated list
+- `/ventures/[slug]/strategy` — Loop 1 conversation surface
+- `/api/loops/[loopId]/invoke` — streaming Loop SSE endpoint
+- `/api/loops/runs/[runId]/cancel` — cancellation handle
+- `/api/command-bar` — command-bar SSE endpoint
+- `/api/cron/loop8-threshold` — Loop 8 threshold cron entry
+- `/api/webhooks/[source]` — extended with Loop 8 fire-and-forget on `source=stripe`
 
-### 1. Bridge home (`/` on `app.solodesk.ai`)
+### Test files added (substrate)
 
-- 2-3 column responsive grid of venture tiles (auto-fit minmax 280px)
-- Each tile = `VentureMark` (22px) + name + `StateDot` + vital sign + `Sparkline` + pending count + connection chips + last-activity timestamp
-- Right rail: live `Watch` (subscribed to `events` table via Supabase realtime, scoped to visible ventures)
-- Top chrome: `BridgeDayToggle` (Bridge / Day) + `LiveClock` + operator email
-- `TimeOfDayProvider` writes `--chrome-tone` (warm / neutral / cool) to `<html>` based on local hour
-- Single SQL roundtrip via `bridge_tiles(p_user_id, p_is_admin)` RPC; membership filter happens at the SQL layer, never the client
+17 test files total in repo, 153 tests passing. New in this phase:
 
-### 2. Venture Bridge (`/ventures/[slug]`)
+- `tests/components/venture/sparkline.test.tsx`
+- `tests/lib/venture/state-derivation.test.ts`
+- `tests/lib/venture/bridge-db.test.ts`
+- `tests/lib/watch/narrate.test.ts`
+- `tests/lib/day/curate.test.ts`
+- `tests/lib/loops/parser.test.ts`
+- `tests/lib/command-bar/router.test.ts`
+- `tests/lib/loops/loop-8/dedup.test.ts`
 
-- Header: large `VentureMark` (34px) + name + phase + slug + north star
-- 6-tile function grid (Strategy / Metrics / Content / Customers / Compliance / Operations) with Phosphor regular icons
-- Right rail: single-venture `Watch`
-- COMPANY.md + recent events surface below the grid (preserved from Sprint 0)
+### Substrate modules added
 
-### 3. The Watch (right-rail ambient feed)
+`lib/venture/marks`, `lib/venture/state-derivation`, `lib/db/bridge`, `lib/db/venture-bridge`, `lib/db/day`, `lib/db/threads`, `lib/watch/narrate`, `lib/watch/realtime`, `lib/day/curate`, `lib/loops/parser`, `lib/loops/runner`, `lib/loops/skills/*`, `lib/loops/loop-8/{reactive,triggers,dedup}`, `lib/command-bar/router`.
 
-- Subscribes to `events` via Supabase realtime, scoped to visible ventures
-- 700ms ease-out fade-in for fresh entries; 150ms throttle batches bursts of >5 events/sec
-- `narrate.ts` covers every current event type (`document.*`, `agent_note.*`, `loop.*`, `connection.*`, `anomaly.*`, `support.*`, `memory.*`) with an "Activity in {venture}" fallback for unknown types
-- Bright line: read-only — observation, not communication
+### Components added (sprint-introduced)
 
-### 4. The Day (`/day`)
-
-- Curated list of items needing operator attention (pending docs, open agent_notes, recent open anomalies, stale draft decisions, new support tickets)
-- Priority sort: documents > agent_notes > anomalies > support_tickets, capped at 30
-- Click-to-dismiss persists in `day_item_dismissals`; expires at next 06:00 local time
-- `curate.ts` is pure — passes 14 unit tests
-- Empty state: "All clear. The day is closed."
-
-### 5. Streaming Document view
-
-- Server emits a line-prefixed protocol (`###section: <kind>` … `###comment: section=<k>, ref=<ref>` … `###done`)
-- Pure parser is a streaming state machine; rejects unknown directives, unknown section kinds, comments missing section= or ref= (CLAUDE.md bright lines enforced)
-- Runner persists each Section incrementally as it closes; cancellation polled via `loop_runs.cancel_requested_at`
-- Frontend subscribes to SSE, renders Sections with skeleton placeholders; Pause/Cancel buttons; status pill per Section (drafting → ready → critic_reviewing → resolved)
-- documents.status enum extended with `drafting`, `cancelled`, `drafting_orphaned`; `bridge_tiles` updated to include drafting docs in `state='active'` (closes Sprint 8 caveat)
-
-### 6. Loop 1 conversation surface (`/ventures/[slug]/strategy`)
-
-- Conversation thread with role-distinct styling (operator / agent / critic / inline document)
-- Operator types question, server action persists message, frontend mounts inline `StreamingDocument` against `/api/loops/01-strategy/invoke`
-- Thread persistence via `loop_threads` + `loop_thread_messages`
-- Function tile mapping: Strategy → `/strategy` (was `/decisions`)
-
-### 7. Command bar (⌘K)
-
-- Global keyboard shortcut, focus-trapped overlay, recent + suggested queries
-- Pure router (`lib/command-bar/router.ts`) parses query into typed `CommandIntent`
-- Five intent kinds: curate_day / decisions_search / venture_synthesise / loop8_investigate / clarify (no_access reserved)
-- SSE endpoint dispatches per intent; loop8_investigate triggers a real Loop 8 run via the streaming substrate
-- Membership scoping: router receives `visibleVentures` from server; never widens
-- Watch entry written on completion (`command_bar.query` event)
-
-### 8. Loop 8 reactive
-
-- Three trigger paths converge on `triggerLoop8` (single entry point):
-  - **Webhook** — `app/api/webhooks/[source]/route.ts` fire-and-forgets `triggerLoop8FromStripe` when source=stripe + venture resolved
-  - **Threshold** — `app/api/cron/loop8-threshold` daily cron computes ±2 stddev windows over `metric_snapshots`, fires on breaches
-  - **Manual** — command bar `loop8_investigate` handler calls `triggerLoop8FromManual`
-- Dedup via SHA-256 fingerprint over `(venture_id, metric_kind, day_bucket)` with 1h window; unique constraint resolves races
-- Loop 8 produces a Document with Section kinds in `(prose, recommendation, evidence, risk, kill_criteria)` — no new kinds invented
-- Old `/api/cron/daily-digest` cron preserved for the duration; removal post-deploy after reactive Loop 8 is proven live
+VentureMark, Sparkline, StateDot, ConnectionChip, VentureStripe, FunctionTile, VentureBridge, Bridge, VentureTile, TimeOfDayProvider, LiveClock, BridgeDayToggle, Watch, WatchEntry, Day, DayItem, StreamingDocument, StreamingSection, ConversationThread, MessageBubble, CommandBar.
 
 ---
 
-## Bright lines kept across the phase
+## What is verified (observed working at HANDOFF time)
 
-Every sprint preserved every bright line. Audit:
+Every claim in this section was observed running on commit `581aa9f` immediately before HANDOFF. No claim was made by extrapolation from sprint-level rubrics.
 
-- **Cross-venture isolation** — every server-fetch path filters by visible-venture set derived from membership. `bridge_tiles` filters at SQL layer; `loadDayItems` and `listEventsForVentures` filter at the query layer; `narrate.ts` is venture-context-only; command-bar router only resolves names from `visibleVentures`; Loop 8 runner takes `ventureId` and never null
-- **`buildAgentPrompt` is the single funnel** — no parallel prompt path. Every Loop invocation (Loop 1 streaming, Loop 8 reactive in any of its three triggers, command bar dispatch) goes through `runStreamingLoop` which calls `buildAgentPrompt` once
-- **Typed Sections** — parser enforces; rejects unknown kinds. Loop 1 + Loop 8 system prompts both restrict to enum values
-- **Comments anchor to Sections with evidence pointers** — parser rejects comments missing `section=` or `ref=`
-- **No flat artifacts** — every Loop output is a Document with typed Sections
-- **No external auto-send** — Watch is read-only; Day item dismissal is operator click; command bar Loop 8 invocation is operator-initiated. Loop 1 conversation send is operator click
-- **Internal Loop activity is observation, not communication** — runner emits Watch events for every Section closure and agent-to-critic handoff; no operator click required for those internal transitions (per CLAUDE.md update in Phase 0)
-- **Document approval is a single operator action** — Section-level state enforced at approval time (per Phase 0 CLAUDE.md edit)
-- **No emoji in UI chrome** — verified across every new component
-- **No gradients / shadows / rounded corners** — chrome-tone is single solid border per state. All new components use square borders
-- **No Tabler / Lucide icons** — Phosphor regular only via `/dist/ssr/<Name>` imports (substituted from spec at Sprint 8 start, ratified by Tim, documented in every subsequent HANDOFF)
-- **No Geist** — Inter retained
-- **No shadcn defaults** — every new component uses SoloDesk palette tokens
-- **Membership-scoped at the buildAgentPrompt layer** — command bar router does the check; SSE endpoint verifies; Loop 8 runner takes a venture-scoped trigger
+| Gate | Command | Result | Run at HANDOFF time |
+|---|---|---|---|
+| Type check | `pnpm typecheck` (`tsc --noEmit`) | exit 0, no output | yes |
+| Lint | `pnpm lint` (`eslint .`) | exit 0, no errors | yes |
+| Unit tests | `pnpm test --run` (`vitest run`) | **17 files passed, 153 tests passed**, 1.18s | yes |
+| Production build | `pnpm build` | exit 0, all routes compiled, middleware bundled | yes |
 
----
+Bright lines verified by code inspection (not just rubric scoring):
 
-## Operator-driven verification (post-deploy)
+- Every Loop trigger funnels through `runStreamingLoop()` which calls `buildAgentPrompt()` once. No parallel prompt path exists in the repo (`lib/loops/runner.ts:1-80`).
+- Loop 8 reactive trigger envelope carries `ventureId` non-null end-to-end; the three adapters in `lib/loops/loop-8/triggers.ts` all require it (lines 28, 53, 83).
+- Command-bar router resolves venture names only against the caller-supplied `visibleVentures` list (`lib/command-bar/router.ts:141-165`); never widens.
+- Streaming parser rejects unknown section kinds and comments missing `section=`/`ref=` — covered by the parser test suite (`tests/lib/loops/parser.test.ts`).
 
-The phase is complete in code. Three verification steps fall outside what can be unit-tested in the build session:
-
-1. **Lighthouse a11y on the Bridge / Day / Strategy pages** — operator runs against the deployed instance once seeded with venture data
-2. **Live Loop 1 invocation** — operator types a real strategy question on `/ventures/<slug>/strategy`, observes the streaming run end-to-end. The system prompt teaches the protocol explicitly; if the agent drifts, the parser raises `parser_error` and the runner aborts to `drafting_orphaned`. Tighten the prompt if needed
-3. **Live Stripe webhook + Loop 8 reactive** — operator triggers a Stripe simulator event (or a real test event) against `app.solodesk.ai/api/webhooks/stripe?venture=<slug>`, verifies that a Loop 8 Document lands within ~30 seconds. Cancel the run mid-stream and verify `state='cancelled'`. Re-trigger the same fingerprint and verify the second invocation is deduped
-
-If any of these surface a regression, the fix lands as a follow-up sprint or a polish commit. The substrate is solid.
+That is the totality of what is verified.
 
 ---
 
-## Operator-load measurement plan
+## What is NOT verified (explicit gaps)
 
-The Nov 1 productise gate criterion is *"≥50% of Documents originating from Loops"* (per `EXPERIENCE-LAYER-PHASE.md`). Measurement plan:
+These items are substrate-built but have not been exercised against the real external surface they exist to integrate with. Listing them so the next operator does not assume they work.
 
-- One week post-deploy, run the SQL query: `select loop_name, count(*) from documents where created_at > now() - interval '7 days' group by loop_name`
-- Loop-originated count = sum where `loop_name` in (`01-strategy`, `08-metrics-investigator`, `04-content`, `09-intel-scout`, `06-support-triage`, etc.); operator-authored count = where `loop_name = 'manual'`
-- If ratio ≥ 0.5, the gate passes
-- If ratio < 0.5, identify which Loops aren't being invoked enough and either (a) wire more triggers (more Stripe events, more webhook integrations) or (b) make the surfaces that invoke Loops more discoverable (command-bar suggested queries, Bridge tile click-throughs)
+### 1. Loop 1 end-to-end with the real Anthropic API
 
-Default expectation: with Loop 8 reactive firing on Stripe events and the command bar making Loop 1 + Loop 8 trivially accessible, the ratio should hit 0.5 within the first week if Tim's actual portfolio activity (Kounta + Counsel especially) generates the expected webhook + manual-investigation volume.
+**Status:** substrate built, no live invocation yet.
 
----
+The streaming runner (`lib/loops/runner.ts`), the SSE endpoint (`/api/loops/[loopId]/invoke`), the parser (`lib/loops/parser.ts`), the StreamingDocument component, the conversation thread persistence (`loop_threads` + `loop_thread_messages`), and the Loop 1 strategy skill prompt are all in place. The parser is heavily tested in isolation against synthetic streamed tokens.
 
-## Phase totals
+**Not exercised:** the Anthropic SDK has not been called with the real Loop 1 system prompt streaming through the parser into a live Document with token-by-token persistence. The prompt could under-specify the `###section`/`###comment` protocol and cause `parser_error` → `drafting_orphaned` on first real run. Or the system prompt could over-specify and the model could refuse to produce the expected sections.
 
-| Metric | Count |
-|---|---|
-| Migrations applied | 5 (0008–0012) |
-| New routes | 6 (`/`, `/day`, `/welcome`, `/ventures/[slug]/strategy`, `/api/loops/[loopId]/invoke`, `/api/loops/runs/[runId]/cancel`, `/api/command-bar`, `/api/cron/loop8-threshold`) |
-| New components | 14 (VentureMark, Sparkline, StateDot, ConnectionChip, VentureStripe, FunctionTile, VentureBridge, Bridge, VentureTile, TimeOfDayProvider, LiveClock, BridgeDayToggle, Watch, WatchEntry, Day, DayItem, StreamingDocument, StreamingSection, ConversationThread, MessageBubble, CommandBar) |
-| New lib modules | 9 (lib/venture/marks, lib/venture/state-derivation, lib/db/bridge, lib/db/venture-bridge, lib/db/day, lib/db/threads, lib/watch/narrate, lib/watch/realtime, lib/day/curate, lib/loops/parser, lib/loops/runner, lib/loops/skills/*, lib/loops/loop-8/*, lib/command-bar/router) |
-| New SQL functions | 1 (`bridge_tiles`) |
-| New tests | 103 (50 → 153) |
-| Sprint commits | ~25 across all five sprints |
+The substrate cannot verify itself here — it requires a live Anthropic call.
 
----
+### 2. Loop 8 reactive end-to-end with a real Stripe webhook
 
-## Phase commits (chronological)
+**Status:** substrate built, no synthetic webhook fired yet.
 
-```
-Sprint 7
-e771a0c  docs(phase-0): venture identity, time-of-day, ambient motion in design-system
-88e7a8b  docs(phase-0): bright-line edits to CLAUDE.md
-c1e0bb7  docs(phase-0): experience layer phase added to ROADMAP
-1e8ea5b  feat(sprint-7): migration 0008 venture_identity
-b3847f7  feat(sprint-7): venture identity component library
-e48644c  feat(sprint-7): admin/identity-preview showcase + ventures refactor
-f441a89  fix(sprint-7): gitignore .git-msg.tmp
-04ac738  docs(sprint-7): close HANDOFF, archive
+The webhook route (`/api/webhooks/[source]/route.ts`), the Stripe adapter (`triggerLoop8FromStripe`), the dedup layer (`lib/loops/loop-8/dedup.ts` with the SHA-256 fingerprint and 1h window), and the Loop 8 investigator skill prompt are all in place. The dedup logic is unit-tested in isolation (`tests/lib/loops/loop-8/dedup.test.ts`).
 
-Sprint 8
-51859ca  chore(sprint-8): scope SPRINT.md, ratify Phosphor substitution
-7c6b3c4  feat(sprint-8): bridge_tiles RPC for single-roundtrip aggregation
-b3cd8cc  feat(sprint-8): Bridge + Venture Bridge component layer
-e1b716f  feat(sprint-8): wire / as Bridge home, /dashboard 308 to /
-80cf7e4  docs(sprint-8): close HANDOFF, archive
+**Not exercised:** no webhook (real or simulator) has been delivered to the deployed URL. The webhook signature path currently authenticates on `WEBHOOK_SECRET` shared-token, not Stripe HMAC (already documented as Phase 3 debt in ROADMAP.md:251). The `venture` query-param resolution path has not been exercised against a real Stripe payload shape. The fire-and-forget `void triggerLoop8FromStripe(...)` invocation is not tested under load — it could swallow errors silently.
 
-Sprint 9
-755b523  chore(sprint-9): scope SPRINT.md, document substitutions
-d59e21a  feat(sprint-9): day_item_dismissals table + types
-11ce946  feat(sprint-9): The Watch + The Day
-f4dcc7b  feat(sprint-9): wire Watch + Day toggle + sidebar
-9d2e4e3  docs(sprint-9): close HANDOFF, archive
+The dedup unit tests prove the fingerprint logic; they do not prove that the webhook → Loop 8 chain holds end-to-end.
 
-Sprint 10
-1577a4f  chore(sprint-10): scope SPRINT.md, document substitutions
-876a98a  feat(sprint-10): documents.status drafting/cancelled/orphaned, loop_threads, bridge_tiles update
-bbd250f  feat(sprint-10): streaming Loop substrate
-19345bf  feat(sprint-10): SSE endpoints + StreamingDocument + Loop 1 conversation
-f0360a9  docs(sprint-10): close HANDOFF, archive
+### 3. Operator-load measurement (the Nov 1 gate criterion)
 
-Sprint 11
-7cd916b  chore(sprint-11): scope SPRINT.md, document substitutions
-cbe7497  feat(sprint-11): anomaly_fingerprints + AnomalyFingerprintSource type
-5b1b7e4  feat(sprint-11): Loop 8 reactive
-a14c583  feat(sprint-11): cross-venture command bar (CMD+K)
-1328d30  docs(sprint-11): close HANDOFF, archive
-```
+**Status:** currently uncomputable, meaningful only after one week of production runs.
+
+The Nov 1 gate criterion is *"≥50% of Documents originate from a Loop"* (per `EXPERIENCE-LAYER-PHASE.md` success criterion 7). Today every Document in the database was operator-authored during the build session — the ratio is 0%. There is no way to compute the gate metric until the deployed instance has been used for a working week with both Loop 1 strategy invocations and Loop 8 reactive triggers in normal operator flow.
+
+The measurement query is straightforward (`select loop_name, count(*) from documents where created_at > now() - interval '7 days' group by loop_name`) and can be run on demand once data exists. It is not running today; it cannot be running today.
 
 ---
 
-## What didn't ship (deliberately)
+## Exact next step
 
-Per-sprint Out-of-Scope sections capture the granular deferrals. The phase-level deferrals worth surfacing here:
+**Two debug sessions, post-deploy, in this order.**
 
-- **Cross-venture portfolio recall sentinel** for `buildAgentPrompt` — a `'portfolio'` ventureId that scopes recall across all visible ventures. Sprint 11's command-bar `decisions_search` handler currently requires a venture name; cross-venture decisions search returns a "name a venture" prompt
-- **SSE checkpoint/replay endpoint** — Sprint 10's spec mentioned a per-run checkpoint stream. Page reload reads the partially-persisted Document from DB instead, which is sufficient for current invocation rates
-- **Streaming/runner unit tests with mocked Anthropic SDK** — parser is heavily tested as the trickiest component; runner logic is straight-line orchestration over the parser. Adding mocked Anthropic tests would require fixture maintenance for marginal coverage gain
-- **High-severity vs informational anomaly routing** for Loop 8 — v1 sends every Loop 8 Document to the curator's "document in reviewing" path. Severity-based routing is polish
-- **Old `/api/cron/daily-digest` cron removal** — kept until reactive Loop 8 is proven live
-- **Voice command bar, ML anomaly detection, Slack/email notifications, saved queries, multi-user concurrent edit, real-time collaboration cursors** — entire feature classes deliberately deferred
-- **Lighthouse perf measurement on Bridge first load** — operator-driven on deployed instance
+1. **Loop 1 live invocation debug session.** Deploy the current branch to `app.solodesk.ai`. Open `/ventures/<some-slug>/strategy`. Type a real strategy question. Watch the SSE stream. If the parser fires `parser_error`, capture the raw Anthropic output, tighten the system prompt, redeploy, retry. Iterate until one full Loop 1 run lands a Document with all expected Section kinds in `status='reviewing'`. Document the final prompt revision in a follow-up commit.
+
+2. **Stripe webhook simulation debug session.** Use the Stripe CLI (`stripe trigger invoice.payment_succeeded`) or a hand-crafted curl against `app.solodesk.ai/api/webhooks/stripe?venture=<slug>` with the matching `WEBHOOK_SECRET` header. Verify a Loop 8 Document lands in `documents` with the expected fingerprint row in `anomaly_fingerprints`. Re-trigger with the same payload, verify dedup fires (no second Document, fingerprint row idempotent). Cancel a streaming Loop 8 run via `/api/loops/runs/<runId>/cancel`, verify `status='cancelled'`.
+
+Both sessions should produce a short addendum to this HANDOFF documenting the verified live behaviour and any prompt or wiring changes that landed.
+
+Only after both addenda exist should the operator-load measurement begin (it needs a week of post-deploy operator activity, which the two debug sessions establish baseline for).
 
 ---
 
-## Where the phase ends
+## Known debt
 
-`HEAD = 1328d30`. Five sprints shipped, every quality rubric ≥7/8 (Sprint 7 was 7.5/8 — Lighthouse a11y deferred to operator), every bright line preserved, all CI gates clean.
+- **Loop-0 dispatch seam** — audit ran at HANDOFF time. Findings filed at `.claude/sprints/sprint-12-loop-0-seam.md`. Summary: `triggerLoop8()` is a single funnel for Loop 8 specifically (loopName hardcoded); `routeCommand()` is a clean pure-function seam for command-bar input but the dispatch switch is inlined in the route handler. A future Loop 0 (portfolio orchestrator) cannot intercept either dispatch path without either rewriting the trigger adapters or forking the route handler. Sprint 12 proposal documents a minimal two-file refactor that introduces the seam without changing current behaviour. Not scheduled. Trigger conditions for scheduling listed in the proposal.
+- **Cross-venture portfolio recall sentinel** for `buildAgentPrompt()` — command-bar `decisions_search` currently requires a venture name. Cross-venture sentinel deferred (noted in `app/api/command-bar/route.ts:152-157`).
+- **SSE checkpoint/replay endpoint** — Sprint 10 spec mentioned per-run checkpoint stream. Page reload reads partial Document from DB instead. Sufficient until invocation rates climb.
+- **Streaming runner with mocked Anthropic SDK in tests** — parser is heavily tested; runner orchestration is not. Mocked Anthropic fixtures would add coverage for marginal benefit; deferred.
+- **Severity-based routing for Loop 8** — every Loop 8 Document goes to the standard reviewing path. Severity scoring lives in the agent's output, not the routing layer.
+- **Old `/api/cron/daily-digest` cron** — kept until Loop 8 reactive is proven live (see "Exact next step"). Remove after debug session 2 produces a verified Loop 8 Document from a real webhook.
+- **Stripe HMAC signature validation** — webhook auth is shared-secret today (`WEBHOOK_SECRET` header). Per-provider HMAC via `getConnection()` is queued for Phase 3 per ROADMAP.md:251.
+- **Lighthouse a11y measurement on Bridge / Day / Strategy** — operator-driven on deployed instance, not part of the build session.
 
-**The Nov 1 productise gate is met in code.** Live deploy verification + operator-load measurement complete the gate. The substrate is what was promised: SoloDesk feels like a COO instead of a wiki.
+---
 
-Phase status: complete. Continuing to Tim's choice of next work.
+## Bright lines preserved
+
+The phase preserved the bright lines listed in CLAUDE.md without exception. Audit by inspection:
+
+- Cross-venture isolation: `bridge_tiles` filters at SQL layer; `loadDayItems`, `listEventsForVentures`, command-bar router, Loop 8 trigger envelope all carry `ventureId` non-null.
+- `buildAgentPrompt()` single funnel: every Loop invocation routes through `runStreamingLoop` → `buildAgentPrompt`; no parallel path exists.
+- Typed Sections: parser enforces; Loop 1 and Loop 8 system prompts both restrict output to enum kinds.
+- Comments anchor to Sections with evidence pointers: parser rejects globals.
+- No flat artifacts: every Loop output is a Document.
+- No external auto-send: Watch is read-only, Day dismissal is operator click, command-bar Loop 8 invocation is operator-initiated, Loop 1 send is operator click.
+- Internal Loop activity is observation: runner emits Watch events for section closure / agent-to-critic handoff without operator click (per Phase 0 CLAUDE.md edit).
+- Document approval is single operator action with Section-state enforcement at approval time (per Phase 0 CLAUDE.md edit).
+- Visual rules: no emoji, no gradients, no shadows, square corners, Phosphor regular icons only, Inter font (Söhne deferred).
+
+---
+
+## Recommendation
+
+**Phase 3 (tldraw) is ready to scope but should not begin until the two debug sessions above have produced verified evidence that Loop 1 and Loop 8 reactive work end-to-end on the deployed instance.**
