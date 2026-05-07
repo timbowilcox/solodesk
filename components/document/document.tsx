@@ -1,5 +1,6 @@
 import type { Tables } from "@/lib/supabase/types";
 
+import type { CommentRow } from "./comment";
 import { Section, type SectionRow } from "./section";
 
 export type DocumentRow = Tables<"documents">;
@@ -7,10 +8,12 @@ export type DocumentRow = Tables<"documents">;
 export function Document({
   document,
   sections,
+  comments = [],
   editable = false,
 }: {
   document: DocumentRow;
   sections: SectionRow[];
+  comments?: CommentRow[];
   editable?: boolean;
 }) {
   return (
@@ -28,7 +31,12 @@ export function Document({
           </p>
         ) : (
           sections.map((s) => (
-            <Section key={s.id} section={s} editable={editable} />
+            <Section
+              key={s.id}
+              section={s}
+              editable={editable}
+              comments={comments}
+            />
           ))
         )}
       </div>

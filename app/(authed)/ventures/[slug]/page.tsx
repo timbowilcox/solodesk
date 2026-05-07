@@ -60,7 +60,13 @@ export default async function VenturePage({
             <span className="font-medium text-ink">{venture.north_star}</span>
           </p>
         )}
-        <nav className="flex gap-6 pt-2 text-sm">
+        <nav className="flex flex-wrap gap-x-6 gap-y-2 pt-2 text-sm">
+          <Link
+            href={`/ventures/${venture.slug}/office-hours`}
+            className="text-accent underline-offset-2 hover:underline"
+          >
+            Office hours
+          </Link>
           <Link
             href={`/ventures/${venture.slug}/digests`}
             className="text-accent underline-offset-2 hover:underline"

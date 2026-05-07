@@ -5,6 +5,7 @@ import type {
   Tables,
 } from "@/lib/supabase/types";
 
+import { Comment, type CommentRow } from "./comment";
 import { ProseSection } from "./sections/prose";
 import { RecommendationSection } from "./sections/recommendation";
 import { EvidenceSection } from "./sections/evidence";
@@ -35,6 +36,7 @@ export type SectionRow = Tables<"sections">;
 export type SectionProps = {
   section: SectionRow;
   editable: boolean;
+  comments?: CommentRow[];
 };
 
 const STATUS_BADGE: Partial<Record<SectionStatus, { label: string; cls: string }>> = {
@@ -46,9 +48,10 @@ const STATUS_BADGE: Partial<Record<SectionStatus, { label: string; cls: string }
   dismissed: { label: "DISMISSED", cls: "text-ink-faint" },
 };
 
-export function Section({ section, editable }: SectionProps) {
+export function Section({ section, editable, comments = [] }: SectionProps) {
   const label = KIND_LABEL[section.kind] ?? section.kind.toUpperCase();
   const badge = STATUS_BADGE[section.status];
+  const visibleComments = comments.filter((c) => c.section_id === section.id);
 
   return (
     <section
@@ -71,8 +74,15 @@ export function Section({ section, editable }: SectionProps) {
           </span>
         )}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 space-y-4">
         <SectionBody section={section} editable={editable} />
+        {visibleComments.length > 0 && (
+          <div className="space-y-3 pt-2">
+            {visibleComments.map((c) => (
+              <Comment key={c.id} comment={c} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

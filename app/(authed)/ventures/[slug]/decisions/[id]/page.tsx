@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Document } from "@/components/document/document";
-import { getDocumentWithSections } from "@/lib/db/documents";
+import {
+  getDocumentWithSections,
+  listCommentsForSections,
+} from "@/lib/db/documents";
 import { getVentureBySlug } from "@/lib/db/ventures";
 
 import { approveDecisionDocumentAction } from "../actions";
@@ -62,8 +65,11 @@ export default async function DecisionDetailPage({
   });
   if (!ctx) notFound();
 
+  const comments = await listCommentsForSections(ctx.sections.map((s) => s.id));
+
   const sParams = await searchParams;
   const justApproved = sParams.approved === "1";
+  const fresh = sParams.fresh === "1";
   const error = typeof sParams.error === "string" ? sParams.error : null;
 
   const badge = STATUS_BADGE[ctx.document.status] ?? {
@@ -101,9 +107,17 @@ export default async function DecisionDetailPage({
         </p>
       )}
 
+      {fresh && (
+        <p className="text-sm text-ink-mute">
+          Draft saved. The adversarial critic is reviewing in the background —
+          comments may appear on Sections when its pass completes (15-30s).
+        </p>
+      )}
+
       <Document
         document={ctx.document}
         sections={ctx.sections}
+        comments={comments}
         editable={false}
       />
 
