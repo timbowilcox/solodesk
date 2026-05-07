@@ -73,6 +73,12 @@ export default async function VenturePage({
           >
             Memories
           </Link>
+          <Link
+            href={`/ventures/${venture.slug}/settings/connections`}
+            className="text-accent underline-offset-2 hover:underline"
+          >
+            Connections
+          </Link>
         </nav>
       </header>
 

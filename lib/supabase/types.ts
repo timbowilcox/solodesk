@@ -248,6 +248,61 @@ type CommentsInsert = {
 
 type CommentsUpdate = Partial<CommentsInsert>;
 
+export type ConnectionAction =
+  | "fetched"
+  | "rotated"
+  | "created"
+  | "revoked"
+  | "denied";
+
+type ConnectionsRow = {
+  id: string;
+  venture_id: string;
+  provider: string;
+  display_name: string;
+  vault_secret_id: string;
+  scope_metadata: Json;
+  created_by: string | null;
+  created_at: string;
+  revoked_at: string | null;
+};
+
+type ConnectionsInsert = {
+  id?: string;
+  venture_id: string;
+  provider: string;
+  display_name: string;
+  vault_secret_id: string;
+  scope_metadata?: Json;
+  created_by?: string | null;
+  created_at?: string;
+  revoked_at?: string | null;
+};
+
+type ConnectionsUpdate = Partial<ConnectionsInsert>;
+
+type ConnectionAuditRow = {
+  id: string;
+  connection_id: string;
+  action: ConnectionAction;
+  called_by_loop_id: string | null;
+  called_at: string;
+  request_summary: string | null;
+  response_status: number | null;
+};
+
+type ConnectionAuditInsert = {
+  id?: string;
+  connection_id: string;
+  action: ConnectionAction;
+  called_by_loop_id?: string | null;
+  called_at?: string;
+  request_summary?: string | null;
+  response_status?: number | null;
+};
+
+type ConnectionAuditUpdate = Partial<ConnectionAuditInsert>;
+
 export type MemorySource = string; // 'manual','agent:<name>','digest','retrospective','elicitation_resolved'
 
 type MemoriesRow = {
@@ -424,6 +479,18 @@ export type Database = {
         Update: CommentsUpdate;
         Relationships: NoRelationships;
       };
+      connections: {
+        Row: ConnectionsRow;
+        Insert: ConnectionsInsert;
+        Update: ConnectionsUpdate;
+        Relationships: NoRelationships;
+      };
+      connection_audit: {
+        Row: ConnectionAuditRow;
+        Insert: ConnectionAuditInsert;
+        Update: ConnectionAuditUpdate;
+        Relationships: NoRelationships;
+      };
       venture_chunks: {
         Row: VentureChunksRow;
         Insert: VentureChunksInsert;
@@ -542,6 +609,22 @@ export type Database = {
           similarity: number;
           metadata: Json;
         }>;
+      };
+      vault_put: {
+        Args: { p_payload: string; p_name?: string | null };
+        Returns: string;
+      };
+      vault_get: {
+        Args: { p_id: string };
+        Returns: string;
+      };
+      vault_rotate: {
+        Args: { p_id: string; p_payload: string };
+        Returns: void;
+      };
+      vault_delete: {
+        Args: { p_id: string };
+        Returns: void;
       };
     };
     Enums: Record<string, never>;

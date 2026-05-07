@@ -3,15 +3,8 @@
 -- Date: 2026-05-06
 -- Sprint: 1.3
 --
--- STATUS: DRAFT — DO NOT APPLY YET.
---
--- This migration is pre-written and committed alongside Sprint 1.3's spec
--- (`/.claude/sprints/sprint-1.3-connections-layer.md`). It will be applied
--- during the Sprint 1.3 build session, AFTER Sprint 1.1's `0003_documents.sql`
--- ships and BEFORE Sprint 2 (metrics digest), which is the first Loop that
--- needs external venture credentials (Stripe, Resend webhook signing key, etc).
--- Holding the migration in draft form keeps the substrate decision visible in
--- the repo without committing the schema until the design has been reviewed.
+-- Vault wrapper functions ship in companion migration 0005_vault_helpers.sql.
+-- Apply them together (0004 → 0005).
 --
 -- WHY THIS LAYER
 --
