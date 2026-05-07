@@ -92,6 +92,12 @@ export default async function VenturePage({
             Intel
           </Link>
           <Link
+            href={`/ventures/${venture.slug}/support`}
+            className="text-accent underline-offset-2 hover:underline"
+          >
+            Support
+          </Link>
+          <Link
             href={`/ventures/${venture.slug}/memories`}
             className="text-accent underline-offset-2 hover:underline"
           >

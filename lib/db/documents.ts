@@ -157,6 +157,12 @@ export type IntelSignal = {
 
 export type IntelSignalsTableContent = { signals: IntelSignal[] };
 
+export type SupportReplyBlockContent = {
+  subject?: string;
+  body: string;
+  send_when_approved: boolean;
+};
+
 export type SectionSeed =
   | { kind: "prose"; content: ProseContent }
   | { kind: "recommendation"; content: RecommendationContent }
@@ -167,7 +173,8 @@ export type SectionSeed =
   | { kind: "agent_note"; content: AgentNoteContent }
   | { kind: "metric_block"; content: MetricBlockContent }
   | { kind: "content_block"; content: ContentBlockContent }
-  | { kind: "intel_signals_table"; content: IntelSignalsTableContent };
+  | { kind: "intel_signals_table"; content: IntelSignalsTableContent }
+  | { kind: "support_reply_block"; content: SupportReplyBlockContent };
 
 export type CreateDocumentInput = {
   ventureId: string;

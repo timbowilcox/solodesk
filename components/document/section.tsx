@@ -16,6 +16,7 @@ import { KillCriteriaSection } from "./sections/kill-criteria";
 import { MetricBlockSection } from "./sections/metric-block";
 import { ContentBlockSection } from "./sections/content-block";
 import { IntelSignalsTableSection } from "./sections/intel-signals-table";
+import { SupportReplyBlockSection } from "./sections/support-reply-block";
 
 const KIND_LABEL: Record<SectionKind, string> = {
   prose: "PROSE",
@@ -112,6 +113,8 @@ function SectionBody({ section, editable }: SectionProps) {
       return <ContentBlockSection section={section} editable={editable} />;
     case "intel_signals_table":
       return <IntelSignalsTableSection section={section} editable={editable} />;
+    case "support_reply_block":
+      return <SupportReplyBlockSection section={section} editable={editable} />;
     default:
       return (
         <p className="text-sm italic text-ink-mute">
