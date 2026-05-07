@@ -1,128 +1,104 @@
-# Sprint 10 — Streaming Sections + Loop 1 conversation
+# Sprint 11 — Command bar + Loop 8 reactive
 
 **Date:** 2026-05-07
 **Repo:** solodesk
-**Phase:** Experience layer (4 of 5)
-**Spec:** `/.claude/sprints/sprint-10-streaming-sections.md`
-**Estimated build sessions:** 3-4
+**Phase:** Experience layer (5 of 5 — final)
+**Spec:** `/.claude/sprints/sprint-11-command-loop8-reactive.md`
+**Estimated build sessions:** 2-3
 
 ## Scope
 
-Largest sprint of the phase. Three substrate pieces and two surfaces:
+Two surfaces that pull the phase together:
 
-1. **Document `drafting` / `cancelled` / `drafting_orphaned` states.** The schema enum extends. `bridge_tiles`'s "active" derivation (Sprint 8) updates to include drafting documents.
+1. **Command bar (⌘K)** — persistent overlay accessible from any authed page. Operator types a query; router parses it, dispatches to a handler (curate Day, single-venture synthesizer, decisions search, ad-hoc Loop 8, generic Loop 1). Streaming response renders inline; a Watch entry records the query on completion. Membership scoping enforced at the routing layer (router refuses queries about ventures the operator can't see).
 
-2. **Loop output protocol.** A simple line-prefixed format the agent emits:
-   ```
-   ###section: recommendation
-   ...prose...
-   ###section: evidence
-   ...prose...
-   ###comment: section=recommendation, ref=memory:abc
-   ...critic comment...
-   ###done
-   ```
-   `lib/loops/parser.ts` is a streaming state machine: scan tokens for `###` line prefixes, accumulate Section bodies between markers, emit typed events (`section_start`, `section_token`, `section_end`, `comment_added`, `done`). This is the single source of truth for Loop output structure — output that doesn't parse is rejected, not coerced (per CLAUDE.md streaming rule).
+2. **Loop 8 reactive** — replaces the daily-digest cron with an event-driven Loop. Three triggers:
+   - **Webhook** — Stripe event types (`invoice.paid`, `customer.subscription.deleted`, `charge.failed`) trigger evaluation
+   - **Threshold** — a daily cron compares latest metric to trailing 7-day window; fires if outside ±2 stddev
+   - **Manual** — command bar query "Why did Kounta MRR drop?" triggers an ad-hoc run with that context
 
-3. **Streaming runner.** `lib/loops/runner.ts` orchestrates: creates the `loop_runs` row, calls the Anthropic streaming SDK, feeds tokens through the parser, persists each Section as it closes, supports cancellation via a per-run flag in the DB.
-
-4. **SSE endpoint.** `POST /api/loops/[loopId]/invoke` returns `text/event-stream`. Wraps the runner. On client disconnect, server completes idempotently and saves the Document (state: `drafting_orphaned` if critic hasn't finished). `POST /api/loops/runs/[runId]/cancel` sets a cancel flag the runner polls.
-
-5. **Streaming Document view.** `components/document/StreamingDocument.tsx` (client) subscribes to SSE for a Document in `state='drafting'`, renders Sections with skeleton placeholders that fill in token-by-token, shows critic comments anchored to Sections after agent finishes. Pause / Cancel buttons.
-
-6. **Loop 1 conversation surface.** New route `/ventures/[slug]/strategy`. Conversation thread (operator + agent + critic messages, distinct styling). Operator types question, hits send, agent message streams in. When agent crystallizes to a Decision Document, the Document streams inline in the thread.
+Loop 8 produces a Document with typed Sections (Context, Recommendation, Evidence, Risk, Kill criteria) using the streaming substrate from Sprint 10.
 
 **Substitutions and deviations from spec:**
 
-- **Migration number bump.** Spec calls for `0008_loop_runs.sql`; that slot is taken. Sprint 10 uses `0011_streaming_sections.sql`. (`loop_runs` already exists from Sprint 0.)
-- **Document approval ceremony updated** per CLAUDE.md / experience-layer-doc-updates: Document approval is a single operator action; Section-level state (resolved, agent_note open) enforced at approval time. Already landed in CLAUDE.md in Phase 0 (`88e7a8b`).
-- **Live Loop 1 invocation verification is operator-driven.** The DoD line "Test: invoke Loop 1 with a real strategy question, observe full streaming run end-to-end" requires real Anthropic API spend. The substrate (parser, runner, SSE endpoint, StreamingDocument view) is fully unit-tested in this sprint; the live end-to-end test happens on Tim's first invocation post-deploy. Documented in HANDOFF, mirroring Sprint 7's Lighthouse note.
-- **Loop 1 conversation persistence.** Spec is silent on the exact storage schema for conversation threads. Sprint 10 introduces `loop_threads` + `loop_thread_messages` tables (light, append-only). Decision Documents that crystallize from a thread link via `documents.metadata.thread_id`.
-- **Reconnect/checkpoint endpoint** (spec's `/api/loops/runs/[runId]/checkpoint`) deferred to a follow-up in the experience-layer phase. SSE reconnects cleanly because incremental Section persistence means a page reload picks up wherever the run is. The dedicated checkpoint stream-replay path is over-engineered for the current invocation count.
-- **Phosphor regular** continues. No new icon primitives.
+- **Migration number bump.** Spec calls for `0009_anomaly_dedup.sql`; that slot is taken (`bridge_aggregation`). Sprint 11 uses `0012_anomaly_fingerprints.sql`.
+- **'Portfolio' ventureId sentinel deferred.** The spec mentions a portfolio sentinel for cross-venture queries. The substrate change for `buildAgentPrompt` to accept it is out of scope for Sprint 11 — instead, cross-venture queries iterate over visible ventures and synthesise client-side. A subsequent phase introduces the proper portfolio scope.
+- **Stripe webhook simulator test deferred to operator deploy verification.** Live webhook test requires real Stripe credentials; substrate is unit-tested with synthetic payloads. Documented in HANDOFF, mirroring Sprint 10's pattern.
+- **Loop 8 daily-digest cron not removed yet.** The existing `daily-digest` cron at `app/api/cron/daily-digest` is left in place for the duration of this sprint to avoid breaking the live deployment. Removal happens in the post-Sprint-11 deploy verification once reactive Loop 8 is proven in production.
+- **Command bar handler set is intentionally small in v1.** `curate-day`, `decisions-search`, `venture-synthesise`, `loop8-investigate`. The spec mentions "Draft a [function] [artifact]"; that's a Loop 1 / Loop 4 invocation surface that piggybacks on the existing Loop 1 conversation route — `/strategy` for strategy questions remains the primary entry. Adding a "Draft a content piece" command-bar handler is a polish enhancement.
+- **Phosphor regular** continues. Command bar uses `MagnifyingGlass` icon.
 
 ## Acceptance criteria
 
-### Streaming Sections
+### Command bar
 
-- [ ] Migration `0011_streaming_sections.sql` applies cleanly via Supabase MCP
-- [ ] `documents.status` enum extends to include `drafting`, `cancelled`, `drafting_orphaned`
-- [ ] `bridge_tiles` RPC updated so `state='active'` includes documents in `drafting` (Sprint 8 caveat now resolves)
-- [ ] `lib/loops/parser.ts` is a pure streaming state machine — pushes tokens, emits typed events
-- [ ] Parser handles partial chunks, fenced markers, and malformed input without throwing
-- [ ] `lib/loops/runner.ts` calls `buildAgentPrompt()` (no parallel prompt construction path)
-- [ ] Runner persists each Section incrementally as it closes
-- [ ] Runner respects a `cancel_requested_at` flag set by the cancel endpoint
-- [ ] `POST /api/loops/[loopId]/invoke` returns `text/event-stream`
-- [ ] `POST /api/loops/runs/[runId]/cancel` sets the cancel flag and returns 202
-- [ ] `StreamingDocument` component renders Sections as they arrive with skeleton placeholders
-- [ ] Pause button stops client SSE without affecting server run
-- [ ] Cancel button calls cancel endpoint; resulting Document is `state='cancelled'`
-- [ ] Operator can edit a streamed Section after it completes; edit does not interrupt other Sections still streaming
+- [ ] `⌘K` (Mac) or `Ctrl+K` (Win/Linux) opens the command bar from any authed route
+- [ ] `Escape` dismisses the overlay
+- [ ] Recent queries (last 5 stored client-side) and a static list of suggested queries visible on open
+- [ ] Operator types a query, hits Enter, sees a streaming response
+- [ ] Common queries route correctly:
+  - "Show me everything that needs my attention" → curated Day items inline
+  - "What did I decide about <topic>" → recall over decisions corpus
+  - "What's happening with <venture>" → venture state synthesis
+  - "Why did <venture> <metric> <direction>" → ad-hoc Loop 8 invocation
+- [ ] Member scoping enforced — non-admin querying about an unassigned venture gets a graceful "no access" response
+- [ ] Watch entry written on query completion (event: `command_bar.query`)
 
-### Loop 1
+### Loop 8 reactive
 
-- [ ] `/ventures/[slug]/strategy` route reachable
-- [ ] Thread persistence via `loop_threads` + `loop_thread_messages`
-- [ ] Operator can type a question and hit send
-- [ ] Agent message streams into the thread
-- [ ] When agent emits Sections, an inline Document card appears in the thread streaming the Document
-- [ ] Critic comments arrive after agent completes, anchored to Sections
-- [ ] Operator can approve / reject the Document from the inline view
-- [ ] Conversation history persists; navigating away and returning shows prior messages
-
-### Cross-cutting
-
-- [ ] `buildAgentPrompt({ streaming: true })` returns the parser-ready stream wrapper
-- [ ] All existing non-streaming Loop call sites continue to work unchanged
-- [ ] No console errors on a full streaming run
-- [ ] Watch narrates Loop 1 events as they happen (`document.created`, `document.section_streamed`, `agent_note.opened`, `loop.invoked`, `loop.succeeded`)
+- [ ] Migration `0012_anomaly_fingerprints.sql` applies cleanly
+- [ ] `lib/loops/loop-8/dedup.ts` exposes a fingerprint helper + `shouldDedup` check
+- [ ] Stripe webhook handler routes recognised event types into the Loop 8 trigger queue (synthetic payload test)
+- [ ] Threshold cron at `/api/cron/loop8-threshold` runs, evaluates metric_snapshots windowed stats, fires Loop 8 on ±2 stddev breaches
+- [ ] Manual trigger (from command bar handler) invokes Loop 8 with operator-supplied context
+- [ ] Loop 8 produces a Document with Section kinds in (`prose`, `recommendation`, `evidence`, `risk`, `kill_criteria`) — no new kinds invented
+- [ ] Deduplication: identical fingerprint within 1h does not produce a second Document
+- [ ] Document with high-severity origin lands in The Day automatically (curate.ts already picks up `support_ticket` analogue: a new `anomaly` item kind)
 
 ## Definition of done
 
-- [ ] All AC checked with proof (unit tests for substrate; operator-driven live invocation post-deploy noted in HANDOFF)
-- [ ] SSE event types are a discriminated union; no `any` in handlers
-- [ ] Cancelled runs leave Document in `state='cancelled'` (queryable but excluded from active counts)
-- [ ] HANDOFF.md committed (root + archive)
+- [ ] All AC checked with proof (live webhook + live cron operator-verified post-deploy)
+- [ ] HANDOFF.md (Sprint 11) committed and archived
+- [ ] **Phase HANDOFF** at `.archive/handoffs/experience-layer-phase-handoff.md` summarising the entire phase, including operator-load assertion (deferred to first-week-after-deploy measurement)
+- [ ] ROADMAP.md updated: Sprints 7-11 marked complete, phase entry marked complete
 - [ ] All work committed with conventional-commit messages
 - [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all clean
+- [ ] Adversarial check questions answered
 
 ## Quality rubric
 
 | Criterion | What to check |
 |-----------|---------------|
-| Bright line: every loop through `buildAgentPrompt` | Streaming runner calls `buildAgentPrompt()`. No parallel prompt construction path |
-| Bright line: typed Sections | Parser only emits Sections whose kind is in the existing enum. Output that doesn't parse is rejected, not coerced |
-| Bright line: comments anchored to Sections with evidence | Every emitted comment includes a `section_id` reference and an evidence pointer; no global comments |
-| Incremental persistence | Runner saves each Section to the DB as it closes (verified via unit test on the runner's persistence hook) |
-| Idempotent server run | Hitting the cancel endpoint twice doesn't double-cancel; client disconnect doesn't kill the server run |
-| Streaming hygiene | SSE endpoint cleans up on client abort. No leaked AbortController references |
-| TypeScript | SSE event types and parser events are discriminated unions. No `any` |
-| Error surfacing | Anthropic rate-limit, parser malformation, network error all surface to the operator (not silent failure) |
+| Bright line: cross-venture leakage | Command bar router looks up visible ventures via `listVisibleVentures` and refuses queries about anything else. Verified by reading the router + a unit test |
+| Bright line: every loop through `buildAgentPrompt` | Reactive Loop 8 calls `runStreamingLoop` (which calls `buildAgentPrompt`). Webhook handler, threshold cron, manual all converge on the same path |
+| Bright line: typed Sections | Loop 8 skill prompt emits Section kinds from the existing enum |
+| Webhook idempotency | Stripe webhook events use the existing `events.hash` unique index — duplicates dropped at insert. Loop 8 also dedups via `anomaly_fingerprints` |
+| Deduplication | `shouldDedup({ ventureId, fingerprint, withinHours })` returns true if a recent fingerprint exists. Unit test verifies |
+| Command bar latency | First token within 2s of Enter (operator-verified post-deploy; substrate has no synchronous DB calls before the SSE stream opens) |
+| TypeScript | Query routing types and trigger types are discriminated unions. No `any` |
+| Member scoping | Router rejects unassigned-venture queries before invoking any Loop. Verified in router test |
 
-**Score threshold:** Must pass 7/8. The three bright-line criteria are non-negotiable.
+**Score threshold:** 7/8. Bright lines and member scoping non-negotiable.
 
 ## Out of scope
 
-- Voice input on the conversation thread
-- Multi-user concurrent edit on a streaming Document
-- Real-time collaboration cursors
-- Streaming critic-of-critic (one critic pass only)
-- Branching conversation threads in Loop 1
-- Conversation export / share
-- Conversation thread search
-- SSE checkpoint/replay endpoint (page-reload picks up incremental state instead)
-- Token-by-token client-side typewriter rendering with throttling — for v1 we render Section content as it arrives in chunks; per-token CSS animation is polish, not required by AC
+- Voice command bar
+- Cross-venture portfolio recall (the `'portfolio'` sentinel for `buildAgentPrompt`) — deferred
+- ML-based anomaly detection
+- Slack / email notification routing for Loop 8
+- Command bar history search beyond last 5
+- Saved queries / shortcuts
+- Stripe webhook simulator-driven integration test (operator-verified post-deploy)
+- Live reactive Loop 8 production proof — operator-driven on first deploy
+- Removal of the existing `/api/cron/daily-digest` route — kept until reactive Loop 8 is proven live
 
 ## Adversarial check questions (to be answered in HANDOFF)
 
-- What if the agent stalls mid-Section? Expected: visible "stalled" indicator on the Section after 30s of silence; operator can cancel the run
-- What if the user navigates away mid-stream? Expected: Document saved in DB up to the last completed Section; status `drafting_orphaned` if critic hasn't finished. Returning to the route resumes from DB state
-- What if the critic disagrees on every Section? Expected: each Section gets an `agent_note` Section appended; Document holds in `reviewing` until operator resolves. No stuck state
-- What if the network drops mid-SSE? Expected: client refetches via page reload; server completes the run idempotently; partial Document is in DB
-- What if the operator edits a Section while another Section is still streaming? Expected: edit applies to that Section (writes to DB); other Sections continue streaming. No conflict
-- What if Loop 1 produces no Document (just a conversation that doesn't crystallize)? Expected: thread persists; no Document created. Documented behavior
-- What if multiple operators in same venture invoke Loop 1 simultaneously? Expected: each gets their own thread (`loop_threads.user_id` keyed per operator). No cross-pollination
-- Does the streaming endpoint enforce membership scoping? Expected: yes — `ventureId` from URL must match operator's membership via `requireVentureAccess`
-- Does the Watch reflect Loop 1 activity? Expected: yes — runner inserts `loop.invoked`, `document.created`, `document.section_streamed`, `agent_note.opened`, `loop.succeeded` events; Watch's narrate formatter (Sprint 9) handles all of them
-- Does the parser reject non-protocol output? Expected: yes — characters before the first `###section:` are dropped; unrecognised `###` directives raise a parser error event
+- Member uses command bar to ask about an unassigned venture? Expected: "no access" graceful response, not 500
+- Stripe fires 100 webhook events in 1s? Expected: idempotent insert into `events`; Loop 8 dedup yields ≤N Documents (one per fingerprint)
+- Ambiguous command bar query? Expected: router falls back to suggested-queries clarification, no fabricated answer
+- Loop 8 invoked when metric data is missing? Expected: Document acknowledges the missing connection; no fabricated analysis
+- Operator asks about another operator's data? Expected: refused (membership filter is the same; data is venture-scoped, not operator-scoped, so this collapses to the venture-scope check)
+- Command bar in offline mode? Expected: clear error state on stream failure
+- Old daily-digest cron removed without breaking deps? Expected: deferred to post-deploy; documented
+- Loop 8 deduplication across processes? Expected: dedup table is the source of truth; concurrent webhooks may race but the unique fingerprint constraint resolves to one Document
