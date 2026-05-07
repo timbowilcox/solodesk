@@ -213,7 +213,7 @@ DOD highlights:
 
 The Loop catalogue is feature-complete for v0 single-operator use. Two substrate items remain before the Nov 1 productise call — neither is optional:
 
-- **Loop 11 — Portfolio audit.** Cross-venture meta-loop. Runs against the full set of authed ventures. Surfaces stale priorities (Document not updated in N days), unused capabilities (Loop never invoked on venture X in M days), missing connections (Loop 8 enabled on a venture but no Stripe connection present), divergence (Loop 8 scoring distribution drifting across venture instances). Output is a portfolio-scope Document of typed Sections, one per finding. Differentiator vs running Claude Code per venture. Runs on the Sprint 2 scheduler — not a parallel cron. Stub at `/.claude/sprints/sprint-7-portfolio-audit.md`. Gates the Nov 1 productise criteria.
+- **Loop 11 — Portfolio audit.** Cross-venture meta-loop. Runs against the full set of authed ventures. Surfaces stale priorities (Document not updated in N days), unused capabilities (Loop never invoked on venture X in M days), missing connections (Loop 8 enabled on a venture but no Stripe connection present), divergence (Loop 8 scoring distribution drifting across venture instances). Output is a portfolio-scope Document of typed Sections, one per finding. Differentiator vs running Claude Code per venture. Runs on the Sprint 2 scheduler — not a parallel cron. Stub at `/.claude/sprints/sprint-7-portfolio-audit.md`. Phase 3 candidate, not gating Nov 1 — the experience layer phase below is the Nov 1 work.
 - **Team inbound — per-venture inbox.** Inbound email forwarder routes messages to the correct venture (recipient subdomain or tag). Role-gated visibility: teammates query SoloDesk for their venture only; the operator sees all. Reuses Resend pipeline and Corum-derived ingest patterns. Required for "OS for portfolio operators" to extend beyond the operator at the centre. Stub at `/.claude/sprints/sprint-7-team-inbound.md`. Gates the Nov 1 productise criteria.
 
 Day-to-day operation continues alongside:
@@ -222,3 +222,30 @@ Day-to-day operation continues alongside:
 - Compounding. Every failure mode → CLAUDE.md or rubric update. The harness should improve weekly.
 
 **Hard gate at 1 November 2026:** make the productise/don't call. Criteria in README.md.
+
+---
+
+## Experience layer phase (Sprints 7-11)
+
+Five sprints, target 4-5 weeks. Productisation phase. Builds the surfaces that make the substrate feel like a COO rather than a wiki. See `/.claude/sprints/EXPERIENCE-LAYER-PHASE.md` for the phase overview.
+
+| Sprint | Surface | Spec |
+|--------|---------|------|
+| 7 | Visual venture identity system | sprint-7-visual-identity.md |
+| 8 | The Bridge (portfolio canvas) | sprint-8-bridge.md |
+| 9 | The Watch + The Day (ambient surfaces) | sprint-9-watch-day.md |
+| 10 | Streaming Sections + Loop 1 conversation | sprint-10-streaming-sections.md |
+| 11 | Command bar + Loop 8 reactive | sprint-11-command-loop8-reactive.md |
+
+Hard prerequisite for Nov 1 productise gate. Phase completion criteria in EXPERIENCE-LAYER-PHASE.md.
+
+---
+
+## Phase 3 candidates (post experience layer)
+
+Not gating Nov 1. Considered after the experience layer phase ships and the productise/don't call is made.
+
+- **Loop 11 — Portfolio audit follow-ups.** Substrate shipped earlier (commit `653b271`); Phase 3 work is full divergence detection (Loop 8 scoring distribution drift across venture instances) and richer finding kinds.
+- **Team inbound — webhook layer.** Substrate (`venture_members` + role-gated visibility) shipped (commit `456ca61`); Phase 3 work is the actual inbound mail forwarder + Resend webhook + Support Ticket auto-creation per inbound email.
+- **Sprint 1.2 phase 2** — per-Section approval refinements once the experience-layer phase has redefined the approval ceremony.
+- **Real Stripe webhook signature validation** — currently webhook handlers accept on shared secret; per-provider HMAC via `getConnection()` lands here.
