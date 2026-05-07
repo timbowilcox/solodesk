@@ -532,6 +532,30 @@ type LoopThreadMessagesInsert = {
 
 type LoopThreadMessagesUpdate = Partial<LoopThreadMessagesInsert>;
 
+export type AnomalyFingerprintSource = "webhook" | "threshold" | "manual";
+
+type AnomalyFingerprintsRow = {
+  id: string;
+  venture_id: string;
+  fingerprint: string;
+  document_id: string | null;
+  source: AnomalyFingerprintSource;
+  payload: Json;
+  created_at: string;
+};
+
+type AnomalyFingerprintsInsert = {
+  id?: string;
+  venture_id: string;
+  fingerprint: string;
+  document_id?: string | null;
+  source: AnomalyFingerprintSource;
+  payload?: Json;
+  created_at?: string;
+};
+
+type AnomalyFingerprintsUpdate = Partial<AnomalyFingerprintsInsert>;
+
 export type Database = {
   public: {
     Tables: {
@@ -635,6 +659,12 @@ export type Database = {
         Row: LoopThreadMessagesRow;
         Insert: LoopThreadMessagesInsert;
         Update: LoopThreadMessagesUpdate;
+        Relationships: NoRelationships;
+      };
+      anomaly_fingerprints: {
+        Row: AnomalyFingerprintsRow;
+        Insert: AnomalyFingerprintsInsert;
+        Update: AnomalyFingerprintsUpdate;
         Relationships: NoRelationships;
       };
       venture_chunks: {
