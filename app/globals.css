@@ -103,6 +103,27 @@
     }
   }
 
+  /* Time-of-day chrome — single solid border-color per state, NOT a
+     gradient. TimeOfDayProvider sets --chrome-tone on <html>; the Bridge
+     frame reads --bridge-frame which resolves through the tone variable
+     to a token in the SoloDesk palette. Default = neutral. */
+  :root {
+    --chrome-tone: neutral;
+    --bridge-frame: var(--color-rule-strong);
+  }
+  html[style*="--chrome-tone: warm"] {
+    --bridge-frame: #c4b89a; /* warmer rule (morning) */
+  }
+  html[style*="--chrome-tone: cool"] {
+    --bridge-frame: #9eb0c4; /* cooler rule (evening) */
+  }
+  html.dark[style*="--chrome-tone: warm"] {
+    --bridge-frame: #5a4f3c;
+  }
+  html.dark[style*="--chrome-tone: cool"] {
+    --bridge-frame: #3c4659;
+  }
+
   /* StateDot — the one allowed pulsing element on the Bridge, per
      design-system venture-identity + ambient-motion sections. Status
      indicator, not a loading reveal — distinct from the banned
