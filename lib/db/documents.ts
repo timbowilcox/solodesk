@@ -322,16 +322,63 @@ export async function setDocumentStatus(opts: {
 }
 
 /**
+ * Predicate: is this agent_note Section resolved?
+ *
+ * CLAUDE.md bright line: a Document cannot flip to `approved` while any
+ * `agent_note` Section is unresolved. Resolution = either the section is
+ * in a terminal status (approved/dismissed/rejected) OR its `decision`
+ * content field has been filled in.
+ *
+ * Non-agent_note sections always return true (vacuously resolved).
+ */
+export function isAgentNoteResolved(section: {
+  kind: SectionKind;
+  status: SectionStatus;
+  content: Json;
+}): boolean {
+  if (section.kind !== "agent_note") return true;
+  if (
+    section.status === "approved" ||
+    section.status === "dismissed" ||
+    section.status === "rejected"
+  ) {
+    return true;
+  }
+  const decision =
+    section.content && typeof section.content === "object" && !Array.isArray(section.content)
+      ? (section.content as Record<string, unknown>).decision
+      : null;
+  return typeof decision === "string" && decision.trim().length > 0;
+}
+
+/**
+ * Find all unresolved agent_note Sections in a Document. Returns an empty
+ * array when every agent_note has been resolved (or when there are none).
+ */
+export function findUnresolvedAgentNotes<
+  T extends { id: string; kind: SectionKind; status: SectionStatus; content: Json },
+>(sections: T[]): T[] {
+  return sections.filter((s) => !isAgentNoteResolved(s));
+}
+
+/**
  * Approve a Decision Document: flip all its sections to `approved`, the
  * document to `approved`, and write a row into the legacy `decisions` table
  * for backwards-compat with the Sprint 0 schema.
+ *
+ * Bright line (CLAUDE.md): refuses to proceed if any `agent_note` Section
+ * remains unresolved. The error result includes the offending section ids
+ * so the caller can surface them to the operator.
  *
  * Returns the new decisions.id on success so the caller can link to it.
  */
 export async function approveDecisionDocument(opts: {
   documentId: string;
   ventureId: string;
-}): Promise<{ ok: true; decisionId: string } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; decisionId: string }
+  | { ok: false; error: string; unresolvedSectionIds?: string[] }
+> {
   const supabase = createSupabaseAdminClient();
   const ctx = await getDocumentWithSections({
     documentId: opts.documentId,
@@ -340,6 +387,16 @@ export async function approveDecisionDocument(opts: {
   if (!ctx) return { ok: false, error: "document not found" };
   if (ctx.document.type !== "decision") {
     return { ok: false, error: "not a Decision Document" };
+  }
+
+  // Bright-line guard: no approval through unresolved agent_note Sections.
+  const unresolved = findUnresolvedAgentNotes(ctx.sections);
+  if (unresolved.length > 0) {
+    return {
+      ok: false,
+      error: `${unresolved.length} agent_note${unresolved.length === 1 ? "" : "s"} unresolved`,
+      unresolvedSectionIds: unresolved.map((s) => s.id),
+    };
   }
 
   // Bulk-approve sections
