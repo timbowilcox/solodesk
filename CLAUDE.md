@@ -145,6 +145,9 @@ Before any new SKILL.md ships:
 - No agent runs without a budget. If you don't know the budget, the skill isn't ready.
 - **No agent constructs its own prompt.** Every loop's invocation goes through `buildAgentPrompt()` from `/lib/agents/prompt.ts`. If you find yourself string-concatenating context into a system prompt manually, you're violating this rule. Add what you need to the helper instead.
 - **No agent adds events as memories.** Events are SQL aggregation surface, not semantic recall. If a specific event matters enough to recall, promote it to a `memories` row explicitly.
+- **All venture-displaying surfaces use the venture identity component system from `/components/venture/`.** No inline marks, no inline state dots, no inline sparklines elsewhere. (Sprint 7+ — see `/.claude/design-system.md` venture identity section.)
+- **Internal Loop activity is observation, not communication.** Agent generating, critic reviewing, Document state transitions all surface in The Watch as narrative without explicit operator click. External communication (customer email, vendor message, Slack outbound) still requires explicit click. (Sprint 9+.)
+- **Command bar queries enforce membership scoping at the `buildAgentPrompt()` layer, not the client layer.** (Sprint 11+.)
 
 ---
 
@@ -173,8 +176,9 @@ These rules are non-negotiable from Sprint 1 onwards. They make SoloDesk look li
 - **No critic ships a global review note.** Comments anchor to specific Sections. Every critic comment must include an evidence pointer (memory hit, anti-pattern reference, prior decision id, external URL). "This feels off" with no pointer is auto-rejected by the critic rubric.
 - **No agent regenerates more than the Section it's responding to.** If an adjacent Section also needs change, the agent leaves a comment on that Section, doesn't edit it.
 - **No Document flips to `approved` while it has unresolved `agent_note` Sections.** Every elicitation must be confirmed, revised, or explicitly deferred — never silently approved through.
-- **No bulk-approve action without per-Section status updates.** "Approve all" can be one user click but the data model records each Section's approval individually for audit.
-- **No auto-send on any communication.** Send actions require an explicit user click. Approving a draft does not send it.
+- **Document approval is a single operator action.** Section-level state (resolved, agent_note open, etc.) is enforced at approval time — operator cannot approve while any `agent_note` Section is unresolved. Operator can edit any Section pre-approval. Critic comments still anchor to specific Sections with mandatory evidence pointers. (Replaces the previous per-Section click-to-approve / bulk-approve rules. Per-Section ceremony stalled the streaming experience the Sprint 10 substrate needs; the audit discipline moves to approval-time enforcement, not click-by-click.)
+- **No auto-send on external communication.** Customer email, vendor messages, outbound Slack, public posts — explicit operator click required for every external send action. Internal Loop-to-Loop and Loop-to-Document handoffs do not require operator click. Internal Loop activity surfaces in The Watch as observation, not as outbound communication.
+- **Streaming Loop output emits typed Section events.** The parser is the single source of truth — Loop output that does not parse into typed Sections is rejected, not coerced. (Sprint 10+.)
 
 ---
 
