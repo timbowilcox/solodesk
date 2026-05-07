@@ -14,6 +14,7 @@ import { AgentNoteSection } from "./sections/agent-note";
 import { AlternativesSection } from "./sections/alternatives";
 import { KillCriteriaSection } from "./sections/kill-criteria";
 import { MetricBlockSection } from "./sections/metric-block";
+import { ContentBlockSection } from "./sections/content-block";
 
 const KIND_LABEL: Record<SectionKind, string> = {
   prose: "PROSE",
@@ -106,6 +107,8 @@ function SectionBody({ section, editable }: SectionProps) {
       return <AgentNoteSection section={section} editable={editable} />;
     case "metric_block":
       return <MetricBlockSection section={section} editable={editable} />;
+    case "content_block":
+      return <ContentBlockSection section={section} editable={editable} />;
     default:
       return (
         <p className="text-sm italic text-ink-mute">

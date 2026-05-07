@@ -80,6 +80,12 @@ export default async function VenturePage({
             Decisions
           </Link>
           <Link
+            href={`/ventures/${venture.slug}/content`}
+            className="text-accent underline-offset-2 hover:underline"
+          >
+            Content
+          </Link>
+          <Link
             href={`/ventures/${venture.slug}/memories`}
             className="text-accent underline-offset-2 hover:underline"
           >

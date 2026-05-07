@@ -134,6 +134,14 @@ export type MetricBlockMetric = {
 };
 export type MetricBlockContent = { metrics: MetricBlockMetric[] };
 
+export type ContentBlockContent = {
+  channel: "email" | "x" | "linkedin" | "blog";
+  subject?: string;
+  body: string;
+  audience?: string;
+  cta?: string;
+};
+
 export type SectionSeed =
   | { kind: "prose"; content: ProseContent }
   | { kind: "recommendation"; content: RecommendationContent }
@@ -142,7 +150,8 @@ export type SectionSeed =
   | { kind: "evidence"; content: EvidenceContent }
   | { kind: "risk"; content: RiskContent }
   | { kind: "agent_note"; content: AgentNoteContent }
-  | { kind: "metric_block"; content: MetricBlockContent };
+  | { kind: "metric_block"; content: MetricBlockContent }
+  | { kind: "content_block"; content: ContentBlockContent };
 
 export type CreateDocumentInput = {
   ventureId: string;
