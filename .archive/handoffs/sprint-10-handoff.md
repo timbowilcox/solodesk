@@ -166,20 +166,24 @@ Sprint 10 builds substantially on Sprint 9's narrate formatter — the runner em
 
 ---
 
-## Quality rubric — score 8/8
+## Quality rubric — re-scored after evaluator pass
+
+⚠️ **ORIGINAL CLAIM: 8/8.** Re-scored 2026-05-07 after evaluator pass found the agent_note approval enforcement was missing (see retraction in "Bright lines kept" below). The original score is preserved here struck through; the corrected score follows.
 
 | Criterion | Pass? | Note |
 |---|---|---|
 | Bright line: every loop through `buildAgentPrompt` | ok | `runStreamingLoop` calls the function directly; no parallel prompt construction path |
 | Bright line: typed Sections | ok | Parser only emits Sections with kinds in the `SectionKind` enum; unknown kinds raise `parser_error` |
 | Bright line: comments anchored to Sections with evidence | ok | Parser rejects comments missing `section=` or `ref=`. Runner only inserts a `comments` row when both attrs present |
+| Bright line: agent_note approval enforcement | **was FAIL at sprint close, now PASS after phase-fix** | Original `approveDecisionDocument` did not check unresolved agent_notes. Phase-fix added the guard + 11-test suite. Substrate now matches the bright line CLAUDE.md states |
 | Incremental persistence | ok | `persistSection` runs inside `section_end` handler; verified by reading the runner |
 | Idempotent server run | ok | Cancel endpoint returns 202 on already-terminal runs; cancel inside the runner is a single read-then-stop |
 | Streaming hygiene | ok | `controller.abort()` on unmount aborts the fetch; server-side runner exits its for-await on stream end |
 | TypeScript | ok | `SseEvent` and `ParserEvent` are discriminated unions. No `any` in handlers |
 | Error surfacing | ok | Anthropic stream try/catch -> `error` SSE event + `drafting_orphaned` status. Parser errors -> `error` SSE event + `drafting_orphaned` status |
 
-**Score: 8/8. Pass.**
+**Score at sprint close: 7/8 (would have failed the bright-line test if the rubric had a separate row for it — it didn't, which is why the gap was missed).**
+**Score after phase-fix: 8/8.** The corrected rubric above includes a dedicated agent_note row that was missing from the original.
 
 ---
 
@@ -305,7 +309,7 @@ bbd250f  feat(sprint-10): streaming Loop substrate (parser + runner + Loop 1 pro
 - **No flat artifacts** — every Loop 1 invocation produces a Document with typed Sections; nothing writes to legacy `decisions`/`artifacts` tables outside the existing `approveDecisionDocument` path
 - **No external auto-send** — the streaming surface is internal Loop output (observation); no email/Slack/post action triggered by it
 - **Internal Loop activity is observation, not communication** — runner emits events the Watch narrates; no operator click required for agent-to-critic handoff (per CLAUDE.md update in Phase 0)
-- **Document approval is a single operator action** — Section-level state is enforced at approval time (existing logic in `approveDecisionDocument`); per-Section ceremony retired in Phase 0
+- **Document approval is a single operator action** — ⚠️ **RETRACTED 2026-05-07 (phase-fix sprint, commit pending).** The original implementation in `approveDecisionDocument` did NOT enforce agent_note resolution at approval time — it bulk-flipped every non-rejected Section to `approved`, which would silently approve unresolved agent_notes if any approve path ran on a Loop-generated Document. The CLAUDE.md bright line *"No Document flips to approved while it has unresolved agent_note Sections"* was claimed-met but unfounded. The phase-fix sprint added a guard at the top of `approveDecisionDocument` (lib/db/documents.ts) that early-returns `{ ok: false, error: "N agent_notes unresolved", unresolvedSectionIds: [...] }` when any agent_note is in non-terminal status with empty `decision`, plus an 11-test suite covering the predicates and the integration. Per-Section ceremony retirement (Phase 0 CLAUDE.md edit) holds; the approval-time enforcement now actually exists. See `.archive/handoffs/experience-layer-evaluator-qa.md` for the original finding and `.archive/handoffs/phase-fix-handoff.md` for the fix.
 - **No Tabler / Lucide icons** — Sprint 10 ships no new icons; existing Phosphor regular usage preserved
 - **Membership-scoped at the buildAgentPrompt layer** — runner derives ventureId from the validated request; the prompt composition flows through it
 

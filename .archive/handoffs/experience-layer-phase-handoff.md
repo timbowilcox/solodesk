@@ -153,7 +153,7 @@ Only after both addenda exist should the operator-load measurement begin (it nee
 
 ## Bright lines preserved
 
-The phase preserved the bright lines listed in CLAUDE.md without exception. Audit by inspection:
+The phase preserved the bright lines listed in CLAUDE.md, **with one exception that was caught by the post-phase evaluator pass and fixed in the phase-fix sprint**. Audit by inspection:
 
 - Cross-venture isolation: `bridge_tiles` filters at SQL layer; `loadDayItems`, `listEventsForVentures`, command-bar router, Loop 8 trigger envelope all carry `ventureId` non-null.
 - `buildAgentPrompt()` single funnel: every Loop invocation routes through `runStreamingLoop` → `buildAgentPrompt`; no parallel path exists.
@@ -162,11 +162,25 @@ The phase preserved the bright lines listed in CLAUDE.md without exception. Audi
 - No flat artifacts: every Loop output is a Document.
 - No external auto-send: Watch is read-only, Day dismissal is operator click, command-bar Loop 8 invocation is operator-initiated, Loop 1 send is operator click.
 - Internal Loop activity is observation: runner emits Watch events for section closure / agent-to-critic handoff without operator click (per Phase 0 CLAUDE.md edit).
-- Document approval is single operator action with Section-state enforcement at approval time (per Phase 0 CLAUDE.md edit).
+- **Document approval enforces Section-state at approval time — added post-evaluator (phase-fix sprint).** ⚠️ The original Sprint 10/11 substrate did NOT enforce the agent_note rule; `approveDecisionDocument` bulk-flipped non-rejected sections to `approved` without checking unresolved agent_notes. Sprint 10 and Phase HANDOFFs claimed it was enforced; the claim was unfounded. Phase-fix added `findUnresolvedAgentNotes()` + `isAgentNoteResolved()` predicates and a guard at the top of `approveDecisionDocument` that returns `{ ok: false, error, unresolvedSectionIds }` when any agent_note is in non-terminal status with empty `decision`. 11-test suite covers the guard. The bright line *"No Document flips to approved while it has unresolved agent_note Sections"* now actually holds at the substrate, not just on paper.
 - Visual rules: no emoji, no gradients, no shadows, square corners, Phosphor regular icons only, Inter font (Söhne deferred).
+
+### Cron registration correction
+
+The original Sprint 11 HANDOFF deferred `loop8-threshold` cron registration to "operator deploy via the Vercel CLI". That was wrong on the mechanism — Vercel crons are declarative in `vercel.json`. The threshold-cron route existed but would never have fired. Phase-fix added the entry (`0 20 * * *`, 06:00 Sydney = 20:00 UTC, matching project convention) and removed the legacy `/api/cron/daily-digest` cron at the same time (Sprint 11 AC required this; was deferred at sprint close, addressed in phase-fix).
+
+---
+
+## Known debt (deferred Sprint 11 AC, not blocking)
+
+Three Sprint 11 AC remain unmet after the phase-fix sprint. None block Phase 3 scoping; each is documented in `.claude/debt/experience-layer-deferred.md` with file path, line range, spec reference, and the one-sentence fix. Summary:
+
+- **`no_access` response wording.** Sprint 11 AC required a graceful "no access" response when a non-admin queries an unassigned venture. Router returns `clarify` ("which venture is X?") instead. No data leakage; UX wording differs.
+- **`venture_synthesise` is counts-only, not multi-source synthesis.** Spec line 38 wanted recent Documents + Watch entries + connection state via LLM synthesis. Implementation pulls events count + pending docs count.
+- **Severity-based routing absent.** Spec wanted high-severity Loop 8 anomalies in The Day, informational in The Watch only. Implementation lands every Loop 8 Document in The Day via `curate.ts kind='document'`.
 
 ---
 
 ## Recommendation
 
-**Phase 3 (tldraw) is ready to scope but should not begin until the two debug sessions above have produced verified evidence that Loop 1 and Loop 8 reactive work end-to-end on the deployed instance.**
+**Phase 3 (tldraw) is ready to scope. Two debug sessions (Loop 1 live, Stripe webhook live) remain prerequisite as previously noted.** The phase-fix sprint closed the two substrate-level findings (agent_note enforcement guard, threshold cron registration). The three deferred Sprint 11 AC above are UX/scope items, not bright-line violations.

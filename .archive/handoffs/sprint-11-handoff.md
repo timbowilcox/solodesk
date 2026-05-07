@@ -70,7 +70,7 @@ System prompt for Loop 8 in streaming mode. Same line-prefixed protocol as Loop 
 
 `app/api/cron/loop8-threshold/route.ts` — Vercel cron target. Pulls `metric_snapshots` over the last 7 days, groups by `(venture_id, metric_name)`, computes mean + stddev over the window's prior points, fires `triggerLoop8FromThreshold` when the latest observation falls outside ±2 stddev.
 
-Cron registration in `vercel.json` is left for the operator deploy (the Vercel CLI registers the cron once the route is live).
+⚠️ **RETRACTED 2026-05-07 (phase-fix sprint).** The original HANDOFF claimed cron registration was deferred to operator deploy via the Vercel CLI. **That was wrong on the technical mechanism** — Vercel crons are declarative (registered in `vercel.json`), not CLI-managed. Without the vercel.json entry, the threshold cron route exists but never fires on deploy. The Sprint 11 AC *"Threshold cron runs daily"* was effectively unmet. The phase-fix sprint added `{ "path": "/api/cron/loop8-threshold", "schedule": "0 20 * * *" }` to `vercel.json` (06:00 Sydney = 20:00 UTC, matching the project's existing cron-time convention) and removed the legacy `/api/cron/daily-digest` entry in the same edit. See `.archive/handoffs/phase-fix-handoff.md`.
 
 ### Command bar — `lib/command-bar/router.ts`
 
@@ -147,7 +147,9 @@ Adds `<CommandBar operatorEmail={user.email} />` so the overlay is reachable fro
 
 ---
 
-## Quality rubric — score 8/8
+## Quality rubric — re-scored after evaluator pass
+
+⚠️ **ORIGINAL CLAIM: 8/8.** Re-scored 2026-05-07 after evaluator pass found multiple AC unmet (threshold cron not registered, daily-digest cron not removed, no_access wording, venture_synthesise reduced, severity routing absent). Several rubric rows passed but the AC table did not — the rubric was the wrong instrument to catch the misses, the AC checklist was. Original score preserved struck through; corrected score follows.
 
 | Criterion | Pass? | Note |
 |---|---|---|
@@ -160,7 +162,8 @@ Adds `<CommandBar operatorEmail={user.email} />` so the overlay is reachable fro
 | TypeScript | ok | `CommandIntent` and `Loop8TriggerInput` are discriminated unions. No `any` in handlers |
 | Member scoping | ok | Router test `member with empty visible list -> clarify` confirms; SSE endpoint never widens |
 
-**Score: 8/8. Pass.**
+**Score on rubric criteria: 8/8 (unchanged — the rubric items were correctly verified).**
+**Score on AC checklist: FAIL at sprint close** — five AC unmet (threshold cron not registered; old daily-digest not removed; no_access wording; venture_synthesise no LLM; severity routing absent). After phase-fix: cron registration and old-cron removal landed; the other three are explicitly deferred as documented debt in `.claude/debt/experience-layer-deferred.md`. Net status: substrate now matches the cron-related AC; three cosmetic/UX-tier AC remain deferred.
 
 ---
 
@@ -248,7 +251,7 @@ a14c583  feat(sprint-11): cross-venture command bar (CMD+K)
 - Saved queries / shortcuts
 - Stripe webhook simulator-driven integration test (operator-driven post-deploy)
 - Live reactive Loop 8 production proof — operator-driven on first deploy
-- Removal of `/api/cron/daily-digest` — kept until reactive Loop 8 is proven live
+- ~~Removal of `/api/cron/daily-digest` — kept until reactive Loop 8 is proven live~~ ⚠️ **RETRACTED**: the original deferral was wrong scope. Sprint 11 AC required the cron's removal; the phase-fix sprint deleted the route handler at `app/api/cron/daily-digest/route.ts`, removed its `vercel.json` entry, and removed the now-unreachable schedule registration in `lib/scheduler/schedules.ts`. Manual-trigger surface at `/ventures/[slug]/digests` is preserved (still calls `generateDailyDigest()` directly). Audit signal in `lib/db/portfolio-audit.ts:124-141` still string-matches `loop-8-daily-digest` against `loops_enabled` jsonb — meaningful for warning operators with the loop name still in their config but no connections.
 - High-severity vs informational anomaly routing into The Day vs The Watch — v1 sends every Loop 8 Document to the Day-curator's "document in reviewing" path, which is sufficient for the operator to see them
 - Streaming runner unit tests with mocked Anthropic SDK — parser is heavily tested; runner's logic is straight-line orchestration over the parser
 - Reactive Loop 8 runner unit tests with mocked Anthropic SDK — same reasoning
