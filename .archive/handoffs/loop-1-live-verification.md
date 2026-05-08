@@ -265,3 +265,214 @@ UI-fix sprint addressed both FAILs. Detail in `.archive/handoffs/ui-fix-handoff.
 - During a streaming Loop 1 run, Pause and Cancel buttons appear in the DOM (and Pause-then-Resume / Cancel both behave per Sprint 10 spec).
 - A Loop-generated Document at `/ventures/<slug>/decisions/<id>` (status='reviewing') renders the approve form, and clicking Approve calls `approveDecisionDocumentAction` and returns the agent_note guard error when applicable.
 - The "Run 3 fetch never reached the server" cascade (the side-effect of FAIL #1) should be gone — second-submit invocations should now reach the runner.
+
+---
+
+## Addendum — Re-verification against live production (2026-05-08)
+
+**Deployment under test:** `dpl_ACtCTYDmo2gNVnmXyhWb3gcRuz5V` (production), commit `b9442d7` from `main`. The two UI-fix commits + this verification's branch reached `app.solodesk.ai` after `claude/eager-bartik-5a34d0` was pushed and main was fast-forwarded externally.
+
+**Status: PARTIAL PASS — the two UI fixes are confirmed live, Pause works as designed, but a separate substrate bug in the Cancel flow surfaced. One additional substrate finding (ConversationThread second-submit) remains.**
+
+### What now passes (was the original FAIL surface)
+
+| Item | Result |
+|---|---|
+| `/ventures/kounta/strategy` renders without React #418 | **PASS** — Watch entries hydrate from `--:--` placeholder to local Sydney time; no console errors observed across 5 fresh page loads |
+| Pause button visible during streaming | **PASS** — observed in DOM during all 4 streaming runs in this re-verification |
+| Cancel button visible during streaming | **PASS** — observed in DOM during all 4 streaming runs |
+| Approve form renders on Loop-generated `status='reviewing'` Document | **PASS** — clicked through end-to-end, see Run 1 below |
+| Document approval flips status to `approved` and writes a `decisions` row | **PASS** — verified in DB (`decisions.id = b49c490f-b8cb-4a4e-a38b-e1cdd206e60b`, status=active) |
+
+### Run 1 — the prescribed reproducibility question (PASS server-side; UI all green)
+
+- **Question:** *"Should Kounta prioritize Mercury direct API integration or MCP OAuth flow first, given Q4 distribution goals?"*
+- **`loop_runs.id`:** `45573642-3ef1-4e21-8ed5-ae737d002de6`
+- **`documents.id`:** `05c699cb-632b-4a41-add1-93b2fa5ef037`
+- **Final status:** run=`succeeded`, doc=`reviewing` then `approved`
+- **Tokens:** 1035 in / 822 out
+- **Total duration:** 18,917 ms
+- **Sections produced (5):** recommendation, alternatives, kill_criteria, evidence, risk — correct order, all `draft` until approve flipped them to `approved`
+- **Critic comments:** 0 — agent chose not to emit `###comment:` directives this time (consistent with directive's noting that critic engagement is the agent's prompted choice)
+- **agent_note Sections:** 0 — guard cannot be live-exercised this run; **regression test added in ui-fix sprint covers the guard against `status='reviewing'` documents in unit tests** (see `tests/lib/db/documents.test.ts` "guard fires for status='reviewing' documents (Loop-generated path)")
+
+#### Server-side timing (events table, ms-precision)
+
+| Event | t = ms from `loop.invoked` | Δ between |
+|---|---|---|
+| loop.invoked | 0 | — |
+| document.created | +35 | +35 |
+| section_streamed: recommendation | +5,105 | +5,070 (time-to-first: 5.1s — over the <2s target, bound by Anthropic) |
+| section_streamed: alternatives | +9,749 | +4,644 (within 2–5s) |
+| section_streamed: kill_criteria | +12,938 | +3,189 (within 2–5s) |
+| section_streamed: evidence | +16,189 | +3,251 (within 2–5s) |
+| section_streamed: risk | +18,756 | +2,567 (within 2–5s) |
+| loop.succeeded | +18,823 | +67 |
+
+#### Approve flow
+
+Navigated to `/ventures/kounta/decisions/05c699cb-632b-4a41-add1-93b2fa5ef037`. The page rendered:
+- Status badge "REVIEW"
+- All 5 Section bodies
+- "Approve decision" button
+
+Clicked Approve. URL transitioned to `?approved=1`. After the action:
+- `documents.status` = `approved`
+- `documents.approved_at` set
+- 5 `sections` rows flipped to `status='approved'`
+- New `decisions` row created (status=`active`, document_id linked)
+
+**FIX 2 verified live and end-to-end.**
+
+### Run 2 — Pause mid-stream (PASS)
+
+- **Question:** *"Pause-test 8: Provide a thorough multi-region strategy analysis for Kounta covering ten countries..."*
+- **`loop_runs.id`:** `227d2781-2d72-4bb0-9d00-1dcbaa9630fa`
+- **`documents.id`:** `c7081ae2-ccda-467f-92c7-f2218e5f57f3`
+- **Pause clicked at:** +2,017 ms after submit
+- **Server result:** run=`succeeded`, duration=31,538 ms, doc=`reviewing`, 5 sections persisted
+
+The Pause primitive works exactly as the StreamingDocument header describes: client stops consuming the SSE, server completes idempotently. Observed in DOM:
+- Button text toggled `Pause` → `Resume` immediately on click
+- Article remained in `drafting` state client-side because the client never received the `done` event after pausing
+- Server-side state advanced normally (loop completed, sections persisted, document moved to `reviewing`)
+- Watch surfaced `Strategy completed in Kounta.` at the appropriate time
+
+**One cosmetic UX note (not blocking):** the streaming card stays in `drafting` visual state forever after Pause unless the operator manually reloads. There's no "Resume" path that re-attaches to the in-flight stream — clicking Resume just allows the (now ended) SSE reader loop to continue, but there are no more events to read because the server already finished. Could be addressed by polling `documents.status` post-pause and reconciling, but this is a Sprint 10 design choice (not a bug per spec).
+
+### Run 3 — Cancel mid-stream (FAIL — substrate misclassifies the run end-state)
+
+Two attempts. Both produced the same wrong outcome.
+
+#### Attempt 1 (Cancel-test 1) — Cancel BEFORE first section
+
+- **`loop_runs.id`:** `9fa1522e-7cec-4860-9fb6-ecee6bf5fd1f`
+- **`documents.id`:** `c5c1ca50-97d0-4e86-97f5-dffeda1f23b0`
+- **Cancel clicked at:** +1,649 ms after submit (before first section streamed)
+- **Expected per spec:** run=`cancelled`, doc=`cancelled`, 0 sections, terminal event `loop.cancelled`
+- **Observed:** run=**`failed`**, doc=**`drafting_orphaned`**, 0 sections, **NO terminal event** in `events` table
+- `cancel_requested_at` was set correctly (proves the `/api/loops/runs/<runId>/cancel` endpoint fires)
+
+#### Attempt 2 (Cancel-test 2 mid-stream) — Cancel AFTER first section
+
+- **`loop_runs.id`:** `450bbfa1-c0dc-4dc6-bd6e-1233b92029d1`
+- **`documents.id`:** `c30ba2ae-a373-4a3e-8e87-7755f6a3ce10`
+- **Cancel clicked at:** +6,444 ms after submit (recommendation streamed at +6,388 ms — cancel ~27ms after first section)
+- **Expected per spec:** run=`cancelled`, doc=`cancelled`, 1 section, terminal event `loop.cancelled`
+- **Observed:** run=**`failed`**, doc=**`drafting_orphaned`**, 1 section (recommendation persisted), **NO terminal event**
+
+#### Root cause analysis
+
+The client's `handleCancel` ([components/document/StreamingDocument.tsx:200-204](components/document/StreamingDocument.tsx:200)) does two things:
+
+```ts
+async function handleCancel() {
+  if (!runId) return;
+  await fetch(`/api/loops/runs/${runId}/cancel`, { method: "POST" });  // sets cancel_requested_at
+  abortRef.current?.abort();                                            // aborts the SSE fetch
+}
+```
+
+The second action — `controller.abort()` on the SSE fetch — closes the response stream from the client side. The Vercel function running `runStreamingLoop` ([lib/loops/runner.ts](lib/loops/runner.ts)) is mid-stream calling `emit(...)` to push SSE frames to the response writer. The next `emit()` call after the client aborts throws an error (write to closed stream).
+
+The runner's catch ([lib/loops/runner.ts:235-242](lib/loops/runner.ts:235)) handles that error unconditionally as a stream failure:
+
+```ts
+} catch (e) {
+  const message = e instanceof Error ? e.message : "anthropic stream failed";
+  await markRunFailed(runId, message);
+  await markDocumentStatus(documentId, "drafting_orphaned");
+  emit({ type: "error", runId, reason: message });
+  emit({ type: "done", documentId, runId, status: "drafting_orphaned" });
+  return { runId, documentId };
+}
+```
+
+It does **not** check `cancel_requested_at` to distinguish "client aborted because user cancelled" from "Anthropic stream genuinely failed." Both paths produce `failed` / `drafting_orphaned`. The cancel polling in the for-loop body never gets a chance to fire because the abort interrupts before the next checkCancelled call.
+
+It also does not call `insertEvent({ type: "loop.failed", ... })` from the catch — only the success path inserts a terminal event ([lib/loops/runner.ts:264-274](lib/loops/runner.ts:264)). That explains the absent terminal event.
+
+#### Fix shape (do not apply in this verification)
+
+Two minimal options:
+
+1. **In the catch:** before marking failed, query `loop_runs.cancel_requested_at`. If set, call the cancellation finalisation path (`finalDocStatus = 'cancelled'`, `finalRunStatus = 'cancelled'`, insert `loop.cancelled` event).
+2. **In the client:** drop the `abortRef.current?.abort()` after POSTing `/cancel`. Let the runner's polling discover the cancel and exit cleanly. The client can stop reading on its own without aborting the connection (e.g. set a paused-style flag like the Pause path already does).
+
+Option 2 is closer to "the Pause path is already correct; mirror it." Option 1 hardens the runner against the existing client behaviour. Either is a small change; both should land together with a test that simulates client-abort during streaming.
+
+### New finding — ConversationThread second-submit silently fails (NOT a hydration cascade)
+
+The original verification report (loop-1-live-verification 2026-05-07) attributed the "Run 3 fetch never reached the server" cascade to the React #418 hydration error. With the hydration error now fixed, **the second-submit failure persists**. The original attribution was wrong; the bug is independent.
+
+**Reproduction:** load `/ventures/kounta/strategy`, submit one question (succeeds, run created in DB), then submit a second question without reloading. The second submit's operator message is appended to `loop_thread_messages` (the server action fires) but **no second `loop_runs` row is created** and the SSE endpoint is never hit.
+
+**Evidence from this verification:** during the Pause testing iteration I submitted four questions in a row (Pause-test 4/5/6/7). Only Pause-test 4 (the first after a fresh page load) created a `loop_runs` row. Pause-test 5/6/7 each appended to `loop_thread_messages` but produced zero `loop_runs`. Same pattern observed across multiple runs throughout the session.
+
+**Likely root cause:** [components/loop1/ConversationThread.tsx:65-77](components/loop1/ConversationThread.tsx:65) constructs `streamRequest` with a constant `url` (`/api/loops/01-strategy/invoke`). [components/document/StreamingDocument.tsx:81-193](components/document/StreamingDocument.tsx:81) declares its fetch-firing useEffect with dependency `[streamRequest?.url]`. Because the URL string is identical across submits, React doesn't re-run the effect — even though the `body` payload changed. The second `setLiveDoc` updates the StreamingDocument's props but its useEffect doesn't re-fire, so no new fetch, no new run.
+
+**Fix shape (do not apply in this verification):** depend on the full `streamRequest` object (or on a per-submit nonce / runId) so the useEffect re-fires per submission. Add a Vitest unit test that mounts `<StreamingDocument streamRequest={A}/>`, asserts a fetch fired, then re-renders with `streamRequest={B}` (same URL, different body) and asserts a second fetch fires.
+
+### Summary against the original directive
+
+| Directive item | Result |
+|---|---|
+| Prerequisite: Bridge renders, ANTHROPIC_API_KEY set | **PASS** |
+| 1. Invoke Loop 1 with the exact reproducibility question | **PASS** (`05c699cb…`) |
+| 2a. Time to first Section <2s | **MISS** (~5.1s, bound by Anthropic; same magnitude as prior verification) |
+| 2b. Time per Section 2–5 s each | **PASS** (2.6–5.1s; one Δ slightly over) |
+| 2c. All expected Section kinds appear | **PASS** (5/5 in correct order) |
+| 2d. Critic engages after agent finishes | **NOT OBSERVED** (agent's prompted choice; same as Run 1 of prior verification) |
+| 2e. Critic comments anchor to Sections with evidence pointers | **N/A** (no critic comments this run) |
+| 2f. Critic produces agent_note Sections, unresolved by default | **NOT OBSERVED** (agent's prompted choice) |
+| 2g. The Watch surfaces the run | **PASS** (12:11/12:16 entries appeared at the top with all expected types) |
+| 3. Test agent_note enforcement guard | **N/A live — covered by ui-fix unit test** |
+| 4a. Pause mid-stream | **PASS** (server completed normally despite client pause; doc=`reviewing`) |
+| 4b. Cancel mid-stream | **FAIL** (final state misclassified — `failed`/`drafting_orphaned` instead of `cancelled`/`cancelled`; root cause in runner catch + client abort race) |
+| 5. If anything fails: file findings | **DONE** (this addendum) |
+| 6. If all passes: append "Loop 1 verified end-to-end" + commit | **NOT APPLICABLE** — Cancel substrate bug blocks the "all passes" claim |
+
+### Spend incurred (this re-verification)
+
+5 Loop 1 runs against Anthropic Opus 4.7:
+
+| Run | Question | Tokens in | Tokens out | Status | Approx cost |
+|---|---|---|---|---|---|
+| Run 1 | Mercury vs MCP | 1035 | 822 | succeeded | ~$0.08 |
+| Pause-test 4 | free tier Q1 | ~1035 | ~750 | succeeded (no pause clicked) | ~$0.07 |
+| Pause-test 8 | multi-region 10 countries | ~1035 | ~822 | succeeded (paused at +2s; server completed) | ~$0.08 |
+| Cancel-test 1 | multi-region 20 countries | minimal | 0 | failed (cancelled before first section) | ~$0.02 |
+| Cancel-test 2 | multi-region 20 countries | ~1035 | ~100 | failed (cancelled after first section) | ~$0.03 |
+| **Total** | | | | | **~$0.28** |
+
+Plus three "ghost" submits (Pause-test 5/6/7) that never reached the server — those incurred zero spend, which is what tipped me off to the second-submit bug.
+
+### Recommendation
+
+The two UI fixes (WatchEntry hydration, isApprovableDocumentStatus predicate) are **verified live**. The original verification's two FAILs are closed.
+
+**Two new substrate findings remain** before Loop 1 can be marked end-to-end verified:
+
+1. **Cancel substrate bug** (high priority — UI says "Cancel works" but produces wrong DB state; downstream consumers reading `loop_runs.status` will treat genuine cancels as failures, polluting metrics and triggering unnecessary investigation)
+2. **ConversationThread second-submit bug** (high priority — operator can't run two questions in one session without reloading; conversational thread surface is effectively single-shot)
+
+Both are small, well-localised fixes. Recommend a **`cancel-fix` sprint** (mirror the ui-fix sprint shape: fix, test, redeploy, re-verify the Cancel + second-submit paths). Phase 3 should not begin until those land.
+
+### Appendix — exact identifiers for follow-up
+
+```
+Re-verification deployment: dpl_ACtCTYDmo2gNVnmXyhWb3gcRuz5V (b9442d7)
+
+Run 1 (Mercury Q4):           loop_runs.id = 45573642-3ef1-4e21-8ed5-ae737d002de6
+                              documents.id = 05c699cb-632b-4a41-add1-93b2fa5ef037
+                              decisions.id = b49c490f-b8cb-4a4e-a38b-e1cdd206e60b (post-approve)
+
+Pause-test 4 (free tier):     loop_runs.id = 96a6d68b-413f-4642-b6cb-eb71fd9f4f3b
+Pause-test 8 (10 countries):  loop_runs.id = 227d2781-2d72-4bb0-9d00-1dcbaa9630fa
+                              documents.id = c7081ae2-ccda-467f-92c7-f2218e5f57f3
+
+Cancel-test 1 (early):        loop_runs.id = 9fa1522e-7cec-4860-9fb6-ecee6bf5fd1f
+                              documents.id = c5c1ca50-97d0-4e86-97f5-dffeda1f23b0
+Cancel-test 2 (mid-stream):   loop_runs.id = 450bbfa1-c0dc-4dc6-bd6e-1233b92029d1
+                              documents.id = c30ba2ae-a373-4a3e-8e87-7755f6a3ce10
+```
