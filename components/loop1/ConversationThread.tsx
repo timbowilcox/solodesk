@@ -22,6 +22,19 @@ import {
 
 import { MessageBubble, type MessageView } from "./MessageBubble";
 
+/**
+ * Mint a per-submit identifier. Uses crypto.randomUUID when available
+ * (all evergreen browsers + Node ≥ 19); falls back to a Math.random
+ * suffix on the off chance crypto is unavailable. Identity-only — never
+ * shown to the user, never sent to the server.
+ */
+export function nextRequestId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export type ConversationThreadProps = {
   slug: string;
   ventureId: string;
@@ -32,6 +45,14 @@ export type ConversationThreadProps = {
 };
 
 type LiveDoc = {
+  /**
+   * Per-submit identity. Used as the React `key` on StreamingDocument so
+   * that each submit mounts a fresh component (and a fresh useEffect →
+   * fresh SSE fetch). Without this the component is reconciled rather
+   * than remounted, and a second submit in the same thread silently
+   * fails to invoke the server (Loop 1 live-verification 2026-05-08).
+   */
+  requestId: string;
   documentId: string;
   documentTitle: string;
   streamRequest: { url: string; body: Record<string, unknown> };
@@ -63,6 +84,7 @@ export function ConversationThread({
     const title = body.split(/\s+/).slice(0, 8).join(" ");
     setPendingTitle(title);
     setLiveDoc({
+      requestId: nextRequestId(),
       documentId: "pending",
       documentTitle: title,
       streamRequest: {
@@ -101,6 +123,7 @@ export function ConversationThread({
           <li>
             <div className="border-l-2 px-4" style={{ borderColor: ventureAccent }}>
               <StreamingDocument
+                key={liveDoc.requestId}
                 documentId={liveDoc.documentId}
                 documentTitle={pendingTitle || liveDoc.documentTitle}
                 streamRequest={liveDoc.streamRequest}

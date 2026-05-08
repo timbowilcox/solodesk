@@ -189,8 +189,18 @@ export function StreamingDocument({
     return () => {
       controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streamRequest?.url]);
+    // Re-fire when the parent passes a new streamRequest object — that's
+    // the signal a new submit happened. Keying on `streamRequest?.url`
+    // alone (the prior dep) was wrong because the URL is a constant
+    // (`/api/loops/<loopId>/invoke`), so a second submit in the same
+    // ConversationThread never re-fired the effect and the second SSE
+    // call never went out (Loop 1 live-verification 2026-05-08 caught
+    // this). Object identity is the right signal here: the parent
+    // constructs a fresh `streamRequest` per submit. ConversationThread
+    // also passes `key={liveDoc.requestId}` for full unmount/remount —
+    // with that in place the deps become moot, but they remain as
+    // defence-in-depth for future callers that forget the key.
+  }, [streamRequest]);
 
   function togglePause() {
     pausedRef.current = !pausedRef.current;
