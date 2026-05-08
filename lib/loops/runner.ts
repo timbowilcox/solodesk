@@ -234,10 +234,17 @@ export async function runStreamingLoop(
     outputTokens = finalMessage.usage?.output_tokens ?? 0;
   } catch (e) {
     const message = e instanceof Error ? e.message : "anthropic stream failed";
-    await markRunFailed(runId, message);
-    await markDocumentStatus(documentId, "drafting_orphaned");
-    emit({ type: "error", runId, reason: message });
-    emit({ type: "done", documentId, runId, status: "drafting_orphaned" });
+    await finalizeFromCaughtError({
+      runId,
+      documentId,
+      ventureId: opts.ventureId,
+      loopName: opts.loopName,
+      errorMessage: message,
+      startedAt,
+      inputTokens,
+      outputTokens,
+      emit,
+    });
     return { runId, documentId };
   }
 
@@ -491,6 +498,104 @@ async function persistComment(opts: {
       },
     ] as Json,
   });
+}
+
+/**
+ * Finalise a run that landed in the outer try/catch. The catch fires when
+ * the in-loop body throws — most commonly when the SSE response writer
+ * fails because the client closed the connection (Cancel button hit
+ * abortRef.current?.abort() right after POSTing /cancel).
+ *
+ * Two outcomes:
+ *   - cancel_requested_at is set → operator cancellation. Mark
+ *     run='cancelled', doc='cancelled', emit loop.cancelled event.
+ *   - cancel_requested_at is null → genuine stream failure. Existing
+ *     behaviour (run='failed', doc='drafting_orphaned'); also write a
+ *     terminal loop.failed event (previously missing — the catch path
+ *     emitted SSE events but did not insert a row in `events`, leaving
+ *     the run with no terminal entry).
+ *
+ * `emit()` calls are wrapped in try/catch because the SSE response
+ * writer may already be closed (that's how we got here). Swallowing the
+ * emit error is safe — the DB writes have already landed by then.
+ *
+ * Exported for testability. Production callers should not invoke
+ * directly — `runStreamingLoop`'s catch is the only call site.
+ */
+export async function finalizeFromCaughtError(opts: {
+  runId: string;
+  documentId: string;
+  ventureId: string;
+  loopName: string;
+  errorMessage: string;
+  startedAt: number;
+  inputTokens: number;
+  outputTokens: number;
+  emit: SseEmitter;
+}): Promise<void> {
+  const wasCancelled = await checkCancelled(opts.runId);
+  const durationMs = Date.now() - opts.startedAt;
+
+  if (wasCancelled) {
+    await markDocumentStatus(opts.documentId, "cancelled");
+    await markRunTerminal(opts.runId, "cancelled", {
+      inputTokens: opts.inputTokens,
+      outputTokens: opts.outputTokens,
+      durationMs,
+    });
+    await insertEvent({
+      ventureId: opts.ventureId,
+      type: "loop.cancelled",
+      source: "streaming-runner",
+      payload: {
+        loop_name: opts.loopName,
+        run_id: opts.runId,
+        document_id: opts.documentId,
+      } as Json,
+    });
+    safeEmit(opts.emit, {
+      type: "done",
+      documentId: opts.documentId,
+      runId: opts.runId,
+      status: "cancelled",
+    });
+    return;
+  }
+
+  // Genuine stream failure path. Preserve the existing markRunFailed
+  // (which writes error_message); also write a terminal loop.failed
+  // event so downstream consumers (Watch, daily digest) see a row.
+  await markRunFailed(opts.runId, opts.errorMessage);
+  await markDocumentStatus(opts.documentId, "drafting_orphaned");
+  await insertEvent({
+    ventureId: opts.ventureId,
+    type: "loop.failed",
+    source: "streaming-runner",
+    payload: {
+      loop_name: opts.loopName,
+      run_id: opts.runId,
+      document_id: opts.documentId,
+      error: opts.errorMessage,
+    } as Json,
+  });
+  safeEmit(opts.emit, { type: "error", runId: opts.runId, reason: opts.errorMessage });
+  safeEmit(opts.emit, {
+    type: "done",
+    documentId: opts.documentId,
+    runId: opts.runId,
+    status: "drafting_orphaned",
+  });
+}
+
+function safeEmit(emit: SseEmitter, event: SseEvent): void {
+  try {
+    emit(event);
+  } catch {
+    // Client already closed the SSE connection (this is the common case
+    // when we land in the catch — the abort is what got us here). The DB
+    // writes preceding the emit are the source of truth; the emit is a
+    // best-effort hint for any client still reading.
+  }
 }
 
 async function checkCancelled(runId: string): Promise<boolean> {
