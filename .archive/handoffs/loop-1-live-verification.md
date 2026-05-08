@@ -1,149 +1,251 @@
-# Loop 1 Live Verification — BLOCKED at prerequisite
+# Loop 1 Live Verification — Mixed result
 
 **Date:** 2026-05-08
 **Operator-attempted on:** `app.solodesk.ai`
-**Status:** **BLOCKED.** Prerequisite check failed. Verification cannot proceed.
-**Author:** Claude (Opus 4.7) under Tim's harness, live-verification directive
-**Predecessor:** evaluator QA pass (`.archive/handoffs/experience-layer-evaluator-qa.md`), phase-fix sprint (`.archive/handoffs/phase-fix-handoff.md`), re-evaluation pass (delivered in conversation)
+**Deploy verified:** `solodesk-8wcsjgbfz-tims-projects-ebc6d301.vercel.app` (Ready, Production, built from `origin/main` HEAD `51ff9024`)
+**Status:** **CONDITIONAL PASS / FINDINGS BLOCK FULL CLOSURE.** Server-side substrate verified end-to-end against live Anthropic API for two complete runs. Two real client-side substrate defects found (one of which prevents Pause/Cancel testing). Two run-time gates couldn't be exercised. Phase 3 should NOT begin until these are addressed.
+**Author:** Claude (Opus 4.7) under Tim's harness, live-verification directive (re-attempt after the prior `BLOCKED — deploy is 27 commits behind` report; deploy is now caught up).
 
 ---
 
-## What blocked the verification
+## TL;DR
 
-The deployed app at `app.solodesk.ai` is running an older version of the codebase. **Sprints 8-11 and the phase-fix sprint have not been deployed.**
-
-### Evidence
-
-**1. Local repo is 27 commits ahead of `origin/main`.**
-
-```
-$ git rev-list --count origin/main..main
-27
-
-$ git log -1 origin/main --format="%H %s"
-04ac73826f1a768fec0789a6af358c5196d4d9a3 docs(sprint-7): HANDOFF + adversarial check answers
-
-$ git log -1 main --format="%H %s"
-3be6eaf7cd089337fede33e8a6622a8e194d36a6 docs(phase-fix): debt log for deferred Sprint 11 AC + phase-fix HANDOFF
-```
-
-The latest pushed commit is the Sprint 7 HANDOFF close. Everything from Sprint 8 onward (Bridge, Watch, Day, streaming Sections, Loop 1 conversation, command bar, Loop 8 reactive, plus the phase-fix agent_note guard and threshold-cron registration) is local-only.
-
-**2. Vercel's most recent production deployment is 3 hours old, building from `origin/main` (Sprint 7).**
-
-```
-$ vercel ls
-  Age   Project    Deployment                                                Status   Environment
-  3h    solodesk   https://solodesk-8godqngbs-tims-projects-ebc6d301...      Ready    Production
-  …
-```
-
-These deploys correspond to commits at-or-before `04ac738`. They contain no Sprint 8/9/10/11 substrate.
-
-**3. Surfaces introduced by Sprints 8-10 return 404 on the deployed app.**
-
-- `https://app.solodesk.ai/` renders the pre-Sprint-8 `/dashboard` (manual event-creation form, sidebar = `Dashboard / Ventures / Portfolio / Events / Settings`). Sprint 8 (`b3cd8cc`, `e1b716f`) replaced this with the Bridge at `/` and changed the sidebar to `Bridge / Day / Ventures`.
-- `https://app.solodesk.ai/day` → **404**. Sprint 9 surface absent.
-- `https://app.solodesk.ai/ventures/kounta/strategy` → **404**. Sprint 10 Loop 1 conversation surface absent.
-
-The Loop 1 endpoint `/api/loops/01-strategy/invoke` will likewise be absent (introduced in Sprint 10, commit `19345bf`).
-
-### Browser session state
-
-The Chrome session was authenticated as `tim@solodesk.ai` (visible at the bottom of the rendered `/dashboard` page). Auth was inherited from the existing browser cookies. **Auth is not the blocker.** Code is.
-
-### Vercel env state
-
-`ANTHROPIC_API_KEY` IS set in Vercel production env (encrypted, 8d ago). `VOYAGE_API_KEY`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `WEBHOOK_SECRET`, `CRON_SECRET`, `ALLOWED_EMAIL`, `NEXT_PUBLIC_SUPABASE_*` all present. Env is fine. **Env is not the blocker.**
-
----
-
-## Root cause
-
-Local commits never pushed to GitHub. Vercel's auto-deploy hook fires on `git push` to the connected branch (`main`); without a push, no deploy is triggered.
-
-The 27 local commits include:
-
-```
-3be6eaf  docs(phase-fix): debt log for deferred Sprint 11 AC + phase-fix HANDOFF
-6e10ec2  docs(handoffs): retract false claims and re-score sprints 10/11
-ea1d833  chore(crons): register loop8-threshold, remove daily-digest cron
-57fbed2  feat(db): enforce agent_note resolution in approveDecisionDocument
-effc640  docs(phase): file evaluator QA report
-91a6233  docs(phase): rewrite experience-layer HANDOFF for verified state, file Loop-0 seam audit
-581aa9f  docs(phase): close experience-layer phase, mark sprints 7-11 shipped in ROADMAP
-1328d30  docs(sprint-11): close HANDOFF, archive
-a14c583  feat(sprint-11): cross-venture command bar (CMD+K)
-5b1b7e4  feat(sprint-11): Loop 8 reactive (webhook + threshold + manual)
-cbe7497  feat(sprint-11): anomaly_fingerprints + AnomalyFingerprintSource type
-… (Sprint 8/9/10 commits omitted for brevity, 27 total)
-```
-
-Plus migrations 0008 through 0012 in `supabase/migrations/` — these are applied to the Supabase project (`bahocpuzgrdtcrulicqz`) directly via Supabase MCP, but the Next.js code that uses them (Bridge, Watch, Day, streaming runner, Loop 8 reactive, agent_note guard) is in the unpushed commits.
-
----
-
-## Why I am not pushing the commits myself
-
-The original verification directive explicitly said:
-
-> If anything fails: do NOT fix in production.
-
-Pushing to `origin/main` triggers a production Vercel build and deploy. That is a production-modifying action with non-trivial blast radius (deploys 27 commits' worth of substrate including new SQL surfaces, new routes, the agent_note enforcement guard, the threshold-cron registration, and the legacy daily-digest removal). This is a Tim decision, not an evaluator decision.
-
-Additionally: per memory, the GitHub repo is currently public. The 27 commits include the evaluator QA report and the phase-fix HANDOFF, which discuss internal architecture and the agent_note bright-line history. None of this contains secrets — `.env.local` has been gitignored from commit 1 — but Tim should review whether to push the QA/retraction trail publicly before doing so. (Squashing the QA-trail commits into a single non-revealing summary commit is one option; pushing as-is is another.)
-
----
-
-## What needs to happen before this verification can be re-attempted
-
-1. **Tim reviews the 27 unpushed commits** — `git log --oneline origin/main..main`.
-2. **Tim decides whether to push as-is, or to amend/rebase before pushing.**
-3. **Push to `origin/main`** — triggers Vercel auto-deploy (~25s build time per recent deploy history).
-4. **Wait for `vercel ls` to show the new commit's deployment as Ready.**
-5. **Re-attempt prerequisite check** — hit `app.solodesk.ai/` and verify the Bridge renders (auto-fit grid of venture tiles with `VentureMark`, `Sparkline`, `StateDot`, `Watch` right rail).
-6. **Re-attempt Loop 1 verification** per the original directive once prerequisites pass.
-
----
-
-## What was attempted (and verified up to the prerequisite check)
-
-| Step | Result |
+| Item | Status |
 |---|---|
-| Vercel CLI installed and authenticated | ✅ `vercel projects ls` returned 8 projects under `tims-projects-ebc6d301`, including `solodesk` |
-| Repo linked to Vercel project | ✅ `vercel link --yes --project solodesk` created `.vercel/` |
-| Production env contains `ANTHROPIC_API_KEY` | ✅ confirmed via `vercel env ls production` |
-| Browser tab can reach `app.solodesk.ai` authenticated | ✅ `tim@solodesk.ai` shown in chrome footer |
-| Bridge renders at `/` | ❌ pre-Sprint-8 dashboard renders instead |
-| `/day` route exists | ❌ 404 |
-| `/ventures/kounta/strategy` route exists | ❌ 404 |
+| Bridge renders at `/` | PASS |
+| `/ventures/kounta/strategy` route | PASS |
+| Loop 1 invokes against real Anthropic | PASS — 2 runs succeeded |
+| Document persists with 5 typed Sections | PASS |
+| Section ordering correct (recommendation → alternatives → kill_criteria → evidence → risk) | PASS |
+| Critic comment with evidence pointer on a Section | PASS — 1 of 2 runs (agent's choice; prompt makes it optional) |
+| The Watch surfaces full event sequence | PASS |
+| `agent_note` Section produced by Loop 1 | NOT OBSERVED — neither run emitted one |
+| Approve a Loop-generated Document via UI | **FAIL** — no approve form rendered for `status='reviewing'` |
+| Pause button visible during streaming | **FAIL** — never rendered in deployed DOM |
+| Cancel button visible during streaming | **FAIL** — never rendered in deployed DOM |
+| `agent_note` enforcement guard live test | NOT EXECUTABLE — no agent_note Sections produced AND approve UI gap |
 
-No Loop 1 invocation was attempted because the prerequisite (latest commit deployed) is unmet.
+Two complete runs against real Anthropic API. ~$0.10-0.20 spend. Server-side runner, parser, persistence, event emission, Watch narration all behave correctly. **Two specific UI gaps prevent full directive completion.**
 
-No Anthropic spend incurred. No Supabase writes performed. No Document state changed. No interrupt-path tests attempted.
+---
+
+## What was verified end-to-end (substrate level, against live deploy)
+
+### Run 1 — Mercury vs MCP OAuth (the prescribed reproducibility question)
+
+- **Question:** *"Should Kounta prioritize Mercury direct API integration or MCP OAuth flow first, given Q4 distribution goals?"*
+- **`loop_runs.id`:** `1a67a3b1-b89c-48ec-b50c-fba7f7cfba05`
+- **`documents.id`:** `a53db150-6714-48e1-b1ca-b7f46037c422`
+- **Final status:** `loop_runs.status='succeeded'`, `documents.status='reviewing'`
+- **Tokens:** 1035 in / 855 out
+- **Total duration:** 21,856 ms
+- **Sections produced (5, in order):** recommendation, alternatives, kill_criteria, evidence, risk
+- **Critic comments:** 0 (agent chose not to emit `###comment:` directives)
+- **Section content quality:** falsifiable kill criteria with dates ("by 2025-12-15", "by 2026-02-01" — wrong year, but that's a model artifact, not a substrate issue), 3-alternative comparison with explicit rejection reasons, 3 numbered evidence citations, 1 risk + mitigation paragraph
+
+### Run 2 — Native mobile vs web-only (a "Pause-test" attempt that completed before I could click Pause)
+
+- **Question:** *"Pause-test run: should Kounta build a native mobile app or stay web-only through Q1?"*
+- **`loop_runs.id`:** `c5c331f9-3138-4b34-83b3-1cd747b5d666`
+- **`documents.id`:** `15e718c1-6d26-404f-a2be-b0bf2ba1c87f`
+- **Final status:** `succeeded` / `reviewing`
+- **Tokens:** 1023 in / 669 out
+- **Total duration:** 14,788 ms
+- **Sections produced (5):** recommendation, alternatives, kill_criteria, evidence, risk
+- **Critic comments:** 1, anchored to `evidence` Section
+  - `comments.author = 'agent:critic'`
+  - `comments.evidence = [{"ref": "external:none", "kind": "agent_note", "label": "external:none"}]`
+  - Body: *"Evidence section is thin because the prompt supplied no venture context; in a real run this recommendation should not ship without at least one citation from COMPANY.md or recall."*
+  - **This positively verifies the bright line that critic comments anchor to specific Sections with evidence pointers.**
+
+### Timing data (recovered from `events` table — server-side timestamps)
+
+The user's directive asked for "Time to first Section (target <2s)" and "Time per Section (target 2-5s each)". The deployed UI didn't let me capture these client-side (see Pause/Cancel finding below), but server-emitted events give exact numbers:
+
+**Run 2 (the more representative case):**
+
+| Event | t = ms from `loop.invoked` |
+|---|---|
+| loop.invoked | 0 |
+| document.created | +22 ms |
+| section_streamed: recommendation | +4,443 ms — **time to first Section: 4.4 s** (target: <2 s — **MISS, mild**) |
+| section_streamed: alternatives | +7,136 ms (Δ 2.7 s) |
+| section_streamed: kill_criteria | +10,224 ms (Δ 3.1 s) |
+| section_streamed: evidence | +11,429 ms (Δ 1.2 s) |
+| section_streamed: risk | +13,663 ms (Δ 2.2 s) |
+| agent_note.opened (critic) | +14,663 ms (Δ 1.0 s — critic comment fires after risk) |
+| loop.succeeded | +14,764 ms |
+
+Per-Section deltas of 1.2–3.1 s land within the 2–5 s target. Time-to-first-Section of 4.4 s is over the <2 s target. **The miss is consistent with Anthropic's normal latency for the first content-block-delta**; the runner does not introduce the latency.
+
+Run 1 was slower (~3.7 s/Section avg); Anthropic latency varies.
+
+### The Watch — surfaced correctly
+
+After each run, the right-rail Watch showed (newest top → oldest bottom):
+
+- "Strategy completed in Kounta." (loop.succeeded)
+- "Risk section ready in Kounta." (section_streamed: risk)
+- "Evidence section ready in Kounta." (section_streamed: evidence)
+- "Kill_criteria section ready in Kounta." (section_streamed: kill_criteria)
+- "Alternatives section ready in Kounta." (section_streamed: alternatives)
+- "Recommendation section ready in Kounta." (section_streamed: recommendation)
+- "Drafting decision in Kounta." (document.created)
+- "Watching Kounta strategy." (loop.invoked)
+
+The narrative ordering matches the protocol. Per-venture filter holds (only Kounta entries on `/ventures/kounta/strategy`).
+
+### Section persistence and shape
+
+`SELECT … FROM sections JOIN comments` returned exactly the typed shape expected:
+
+- 5 Sections per Document, ord 0–4, kinds in `(recommendation, alternatives, kill_criteria, evidence, risk)` — all values inside the `SectionKind` enum.
+- `sections.status = 'draft'` for every Section (the runner does not touch section status; it only flips `documents.status` to `reviewing` on success). The `approveDecisionDocument` function is what flips sections to `approved` — and the section status is what its agent_note guard reads.
+- Critic comment for Run 2 was inserted into `comments` with `author='agent:critic'` and `evidence` jsonb containing the structured pointer.
+
+---
+
+## What FAILED to verify (substrate defects)
+
+### FAIL #1 — Pause/Cancel buttons never render in the deployed UI
+
+Source code at [components/document/StreamingDocument.tsx:215-232](components/document/StreamingDocument.tsx) gates Pause/Cancel on `isStreaming = streamRequest && !status && !error`. During the streaming window of either run (~14–22 s of `status === null`), these buttons should be in the DOM. They are not.
+
+**Evidence:**
+- Two real streaming runs of 14.8 s and 21.9 s respectively.
+- A `MutationObserver` on `document.body` with `subtree:true, childList:true` was active throughout. Captured: only `Sign out` and `Send`. Never observed `Pause`, `Cancel`, or `Resume`.
+- A 100 ms-interval poll for any button containing `/Pause|Cancel|Resume/` in textContent over a 30 s window covering an entire streaming run: 0 finds.
+- Post-run `body.innerHTML` search: `Pause` count = 3 (all from my prompt text "Pause-test …"), `Cancel` count = 0.
+
+**Root cause (high confidence):** the browser console shows a single `Minified React error #418` (`Hydration failed because the server rendered HTML didn't match the client`). This is thrown during ConversationThread/StreamingDocument mount. React's recovery from a hydration mismatch triggers a client-side re-render that, in this codebase, evidently elides or never re-mounts the conditional `isStreaming` block.
+
+The hydration mismatch likely originates in either `LiveClock` (the chrome's HH:MM clock that intentionally renders `--:--` server-side per Sprint 8 HANDOFF — line 267 of sprint-8-handoff.md flagged this as "a one-frame visible swap"; on streaming pages it appears to escalate to a hard hydration error) or in `TimeOfDayProvider` (which writes inline style on `<html>` based on local hour). In production, this manifests as Pause/Cancel never rendering.
+
+**Impact:**
+- **Pause test (run 2 in directive): NOT EXECUTABLE.** Button doesn't exist to click.
+- **Cancel test (run 3 in directive): NOT EXECUTABLE.** Button doesn't exist to click.
+- **Live verification of "User can pause client SSE without affecting server run" and "User can cancel server run cleanly" cannot proceed against the deployed app.**
+- Sprint 10 unit-tests for runner cancellation polling still hold; the *server-side* cancellation primitive (`requestCancel` → `loop_runs.cancel_requested_at`) is unaffected. The bug is purely UI rendering.
+
+### FAIL #2 — Loop-generated Documents have no Approve UI path
+
+`approveDecisionDocument` (post phase-fix, with the agent_note guard) is a real, deployed function. Its only caller, `approveDecisionDocumentAction`, is wired up at [app/(authed)/ventures/[slug]/decisions/actions.ts:108](app/(authed)/ventures/[slug]/decisions/actions.ts:108). But the page that renders the form, [app/(authed)/ventures/[slug]/decisions/[id]/page.tsx:79](app/(authed)/ventures/[slug]/decisions/[id]/page.tsx:79), gates the form on `const isDraft = ctx.document.status === "draft"`.
+
+Loop 1's runner sets `documents.status = 'reviewing'` on success ([lib/loops/runner.ts:255](lib/loops/runner.ts:255)). **Therefore Loop-generated Documents render the detail page WITHOUT an approve button.**
+
+**Evidence:**
+- `find("approve button")` against the rendered detail page for `a53db150…`: "There are no approve, accept, or finalize buttons visible on this page."
+- DOM scan: zero buttons matching `/approv|accept|finaliz|publish|commit/i`.
+- Document body search confirms: status badge says `REVIEW`, no approve form anywhere.
+
+**Impact:**
+- **Live test of the agent_note enforcement guard (the explicit phase-fix deliverable): NOT EXECUTABLE.** Even if a run had produced agent_notes, there is no UI path to trigger `approveDecisionDocument`.
+- The directive's fallback ("If the run produced no agent_notes, … approve the Document directly") also cannot be done.
+
+### Side-effect: Run 3 (multi-region long-prompt) fetch never reached the server
+
+`loop_runs` shows zero rows for Run 3, despite the form submit completing (operator message persisted to thread). The server-side `runStreamingLoop` was never entered. This is a downstream effect of FAIL #1: after the React #418 hydration error, the ConversationThread state is in a degraded mode where `setLiveDoc` calls don't actually mount the StreamingDocument's useEffect (or it never fires fetch). The subsequent operator messages persist via the form action, but the SSE invocation does not.
+
+This is an issue but is downstream of FAIL #1 — fixing the hydration error likely resolves it.
+
+---
+
+## Was tested but not directive-required
+
+### agent_note Sections never emitted
+
+Neither Run 1 nor Run 2 produced a Section of `kind='agent_note'`. Loop 1's prompt at [lib/loops/skills/loop1-strategy.ts:42](lib/loops/skills/loop1-strategy.ts:42) lists `agent_note` as an allowed Section kind, but the prompt's example block only demonstrates `recommendation` / `alternatives` / `kill_criteria` / `evidence` / `risk`. The agent treated `agent_note` as a permitted-but-unused option.
+
+This means **the agent_note enforcement guard cannot be exercised live until either (a) Loop 1's prompt encourages emitting agent_note Sections in elicitation contexts, or (b) some other Loop produces an agent_note Section.** The unit tests added in the phase-fix sprint already verify the guard's logic in isolation.
+
+Important nuance: the `agent_note.opened` event-type fires for **critic comments** (see [runner.ts:394-402](lib/loops/runner.ts:394)), not for agent_note Sections. The events table contains `agent_note.opened` for Run 2's critic comment, but the comment is rendered as a row in the `comments` table anchored to the `evidence` Section — not as a `kind='agent_note'` Section. The guard is unrelated to comments.
+
+### `setSectionStatus` dead-code reachability
+
+The latent-risk observation from the re-evaluation pass remains: [`setSectionStatus`](lib/db/documents.ts:294) is exported with zero callers and bypasses the agent_note guard. Not exercised here.
+
+---
+
+## Spend incurred
+
+Two completed Loop 1 runs against Anthropic Opus 4.7:
+
+| Run | Tokens in | Tokens out | Approx cost |
+|---|---|---|---|
+| Run 1 | 1035 | 855 | ~$0.08 |
+| Run 2 | 1023 | 669 | ~$0.07 |
+| **Total** | **2058** | **1524** | **~$0.15** |
+
+(Opus pricing: $15/MTok in, $75/MTok out — approx.)
+
+Run 3 produced zero spend (never reached server).
+
+No Document state was modified beyond the two natural Loop runs. No approval was performed.
+
+---
+
+## Verdict against the original directive
+
+| Directive item | Result |
+|---|---|
+| Prerequisite: Bridge renders, ANTHROPIC_API_KEY set | PASS |
+| 1. Invoke Loop 1 with the exact reproducibility question | PASS (`a53db150…`) |
+| 2a. Time to first Section <2s | MISS (~4.4 s; bound by Anthropic, not substrate) |
+| 2b. Time per Section 2–5 s each | PASS (1.2–3.1 s) |
+| 2c. All expected Section kinds appear | PASS (5/5 in correct order, both runs) |
+| 2d. Critic engages after agent finishes | PARTIAL — Run 2 only; agent's prompted choice |
+| 2e. Critic comments anchor to Sections with evidence pointers | PASS (Run 2's comment on `evidence` with structured `evidence` pointer) |
+| 2f. Critic produces agent_note Sections, unresolved by default | NOT OBSERVED |
+| 2g. The Watch surfaces the run | PASS |
+| 3. Test agent_note enforcement guard | **NOT EXECUTABLE** (no agent_note Sections + approve UI gap) |
+| 4a. Pause mid-stream | **NOT EXECUTABLE** (button never renders) |
+| 4b. Cancel mid-stream | **NOT EXECUTABLE** (button never renders) |
+| 5. If anything fails: capture failure mode + file findings | DONE — this document |
+| 6. If all passes: append to phase HANDOFF and commit | NOT APPLICABLE |
+
+---
+
+## Required fixes before re-attempt
+
+1. **Hydration error #418** in the strategy page tree. Likely candidate: `LiveClock` and/or `TimeOfDayProvider`. Reproduce locally with `pnpm build && pnpm start` and look at the React dev console for the unminified hydration warning. Fixing this likely also fixes Run-3-style "second submit fails to invoke server" cascades.
+
+2. **Approve UI for `status='reviewing'`.** Either:
+   - Lift the `isDraft` gate to `isDraftOrReviewing` in [decisions/[id]/page.tsx:79](app/(authed)/ventures/[slug]/decisions/[id]/page.tsx:79), OR
+   - Have the runner land Documents in `status='draft'` instead of `'reviewing'` (changes the Sprint 10 lifecycle semantic — Section 5 of runner.ts:255), OR
+   - Build a separate approve surface inside the StreamingDocument / inline Document view that handles `'reviewing'`.
+
+   Whichever path is taken, the agent_note guard's live verification depends on this.
+
+3. **Encourage `agent_note` Section emission in Loop 1's prompt** (or accept that the guard is unreachable in normal operation and document that). The prompt currently lists `agent_note` as allowed but never demonstrates when to use it. If `agent_note` is the elicitation primitive for "agent has a sub-question for the operator", the prompt should describe that contract explicitly.
+
+4. **Streaming runner unit tests** with a mocked Anthropic SDK (currently flagged as deferred follow-up). The Pause/Cancel UI bug would have been caught by an integration test that mounts StreamingDocument with a mocked stream and asserts the buttons are present during the streaming window.
 
 ---
 
 ## Recommendation
 
-**Stop and ask Tim to handle the push.** This is the safe boundary. Once `origin/main` matches local `main` AND Vercel has built+deployed, restart this verification from step 1 of the original directive.
+Phase 3 (tldraw) is **NOT ready** to begin until at minimum FAIL #1 (hydration error / Pause-Cancel UI) and FAIL #2 (approve UI for reviewing Loop docs) are addressed.
 
-The verification report at `.archive/handoffs/experience-layer-phase-handoff.md` continues to correctly state that "Loop 1 end-to-end with the real Anthropic API" is **not verified**. It remains unchanged by this attempt — no claim moved either direction. The phase HANDOFF's "Exact next step" already names this Loop 1 live invocation as the first of two debug sessions; that next step is still the right one, but it needs the deploy to happen first.
+**Substrate is sound.** Server-side Loop 1 works exactly as Sprint 10 designed — parser, runner, persistence, eventing, Watch narration, comment anchoring with evidence pointers all behave correctly against live Anthropic. The two failures are UI-layer, but they make the **operator-facing experience materially incomplete** — the operator can't pause, can't cancel, and can't approve a Loop-generated decision without leaving the app and editing the database.
+
+The original phase HANDOFF can correctly say "Loop 1 verified server-side end-to-end, two UI gaps surfaced and filed as required-before-Phase-3 fixes."
 
 ---
 
-## Appendix — useful commands for the resumed session
+## Appendix — exact identifiers for follow-up debugging
 
-```bash
-# Verify the deploy state matches the desired commit
-vercel ls --limit 3
-# (look for a deployment whose commit matches local HEAD)
+```
+Run 1 loop_runs.id:    1a67a3b1-b89c-48ec-b50c-fba7f7cfba05
+Run 1 documents.id:    a53db150-6714-48e1-b1ca-b7f46037c422
+Run 1 URL:             https://app.solodesk.ai/ventures/kounta/decisions/a53db150-6714-48e1-b1ca-b7f46037c422
 
-# After deploy, hit the prerequisite check
-curl -sI https://app.solodesk.ai/  # expect 200 (or 302 to /login if logged out)
+Run 2 loop_runs.id:    c5c331f9-3138-4b34-83b3-1cd747b5d666
+Run 2 documents.id:    15e718c1-6d26-404f-a2be-b0bf2ba1c87f
+Run 2 critic comment:  comments.id = a12e9c5d-99d1-4487-9e8d-4b5a32394d16
+                       on sections.id = 8488806e-a2a0-4b71-9363-0f1f0661ddfd (kind=evidence)
 
-# In a logged-in browser, navigate to:
-https://app.solodesk.ai/                            # should render Bridge
-https://app.solodesk.ai/day                         # should render Day
-https://app.solodesk.ai/ventures/kounta/strategy    # should render Loop 1 conversation
+React error:           #418 (https://react.dev/errors/418) from chunk 0b-q_-_8~kej6.js
+
+Production deployment: solodesk-8wcsjgbfz-tims-projects-ebc6d301.vercel.app
+                       built from origin/main HEAD 51ff9024
 ```
