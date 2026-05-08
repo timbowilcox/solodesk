@@ -476,3 +476,18 @@ Cancel-test 1 (early):        loop_runs.id = 9fa1522e-7cec-4860-9fb6-ecee6bf5fd1
 Cancel-test 2 (mid-stream):   loop_runs.id = 450bbfa1-c0dc-4dc6-bd6e-1233b92029d1
                               documents.id = c30ba2ae-a373-4a3e-8e87-7755f6a3ce10
 ```
+
+---
+
+## Addendum #2 — Cancel and second-submit substrate bugs fixed (2026-05-08, post-re-verification)
+
+The two substrate bugs surfaced by the production re-verification were addressed in the cancel-fix sprint. Detail in `.archive/handoffs/cancel-fix-handoff.md`. Summary:
+
+- **Cancel misclassification.** Extracted the runner's catch-block logic into `finalizeFromCaughtError` ([lib/loops/runner.ts](lib/loops/runner.ts)). New helper queries `loop_runs.cancel_requested_at` first; if set, finalises as `cancelled`/`cancelled` with a terminal `loop.cancelled` event. If null, falls through to the existing failed handling, now also writing the previously-missing `loop.failed` terminal event. All emit() calls run through `safeEmit` to swallow write-after-close errors so DB writes (the source of truth) always complete.
+- **ConversationThread second-submit silent failure.** Confirmed the verification's hypothesis: deps were `[streamRequest?.url]` (URL is constant), single StreamingDocument reused across turns. Fixed two layers: (1) per-submit `requestId` (`crypto.randomUUID()`) on `liveDoc`, passed as React `key` on StreamingDocument so each submit forces a fresh mount and a fresh useEffect cycle; (2) deps changed from `[streamRequest?.url]` to `[streamRequest]` as defence-in-depth.
+
+5 new tests, all passing (3 on `finalizeFromCaughtError`, 2 on `nextRequestId` uniqueness). Build / typecheck / lint / 175-test suite all clean. Honest test gap: a runtime React-effect-refire test for FIX 2 needs JSDom + testing-library which this repo does not have configured; live re-verification on next deploy is the regression guard for that case.
+
+**Re-verification needed against the next deploy.** Specifically:
+- Cancel mid-stream → `loop_runs.status='cancelled'` AND `documents.status='cancelled'` AND a `loop.cancelled` row in `events`
+- Submit two questions in the same ConversationThread without reloading → both create `loop_runs` rows AND both StreamingDocument instances reach `succeeded`
