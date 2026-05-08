@@ -249,3 +249,19 @@ React error:           #418 (https://react.dev/errors/418) from chunk 0b-q_-_8~k
 Production deployment: solodesk-8wcsjgbfz-tims-projects-ebc6d301.vercel.app
                        built from origin/main HEAD 51ff9024
 ```
+
+---
+
+## Addendum — UI defects fixed (2026-05-08, post-verification)
+
+UI-fix sprint addressed both FAILs. Detail in `.archive/handoffs/ui-fix-handoff.md`. Summary:
+
+- **FAIL #1 (hydration mismatch / Pause-Cancel never renders).** Actual source was **not** `LiveClock` or `TimeOfDayProvider` (those only render inside `Bridge.tsx` on `/`, never on `/ventures/<slug>/strategy`). Source was `WatchEntry.formatTimestamp` — uses `getHours()`/`getMinutes()`, server (Vercel UTC) and client (operator local TZ) diverged on every event row, producing the React #418. Fix: same placeholder-then-hydrate pattern that `LiveClock` already uses; render `--:--` server-side, swap to local time after mount via deferred `setState`. With the hydration error gone, `StreamingDocument`'s conditional Pause/Cancel block should mount as designed (no code change needed in `StreamingDocument.tsx`).
+- **FAIL #2 (no approve form for `status='reviewing'`).** Lifted the gate at [decisions/[id]/page.tsx:79](app/(authed)/ventures/[slug]/decisions/[id]/page.tsx:79) via a new `isApprovableDocumentStatus(status)` predicate exported from `lib/db/documents.ts` that returns true for both `draft` and `reviewing` and false for everything else. Agent_note enforcement is unchanged — the guard reads section state, not document.status, and a new test exercises the guard against a `status='reviewing'` document mock.
+
+**Re-verification needed against live deploy.** This sprint cannot exercise the deployed UI directly (no env vars in the worktree); build / typecheck / lint / 174-test suite all clean. Items still requiring live exercise on the next deploy:
+
+- `/ventures/kounta/strategy` renders without React #418 in the browser console.
+- During a streaming Loop 1 run, Pause and Cancel buttons appear in the DOM (and Pause-then-Resume / Cancel both behave per Sprint 10 spec).
+- A Loop-generated Document at `/ventures/<slug>/decisions/<id>` (status='reviewing') renders the approve form, and clicking Approve calls `approveDecisionDocumentAction` and returns the agent_note guard error when applicable.
+- The "Run 3 fetch never reached the server" cascade (the side-effect of FAIL #1) should be gone — second-submit invocations should now reach the runner.

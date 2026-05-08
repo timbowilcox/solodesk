@@ -184,3 +184,9 @@ Three Sprint 11 AC remain unmet after the phase-fix sprint. None block Phase 3 s
 ## Recommendation
 
 **Phase 3 (tldraw) is ready to scope. Two debug sessions (Loop 1 live, Stripe webhook live) remain prerequisite as previously noted.** The phase-fix sprint closed the two substrate-level findings (agent_note enforcement guard, threshold cron registration). The three deferred Sprint 11 AC above are UX/scope items, not bright-line violations.
+
+---
+
+## Resolved post-phase
+
+- **Loop 1 live verification (2026-05-08).** Two complete server-side runs against live Anthropic confirmed the Sprint 10 substrate behaves as designed (parser, runner, persistence, eventing, Watch narration, comment anchoring). Detail in `.archive/handoffs/loop-1-live-verification.md`. Two UI defects surfaced: (1) hydration mismatch on `/ventures/<slug>/strategy` cascading into Pause/Cancel never rendering; (2) no approve form for Loop-generated Documents (status='reviewing'). Both fixed in the **ui-fix sprint** the same day. Detail in `.archive/handoffs/ui-fix-handoff.md`. Re-verification of the live UI behaviour against the next deploy is the only remaining item before Loop 1 verification can be closed; the substrate questions are answered.
