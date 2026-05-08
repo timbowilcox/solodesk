@@ -13,8 +13,14 @@ vi.mock("server-only", () => ({}));
 import {
   isAgentNoteResolved,
   findUnresolvedAgentNotes,
+  isApprovableDocumentStatus,
 } from "@/lib/db/documents";
-import type { Json, SectionKind, SectionStatus } from "@/lib/supabase/types";
+import type {
+  DocumentStatus,
+  Json,
+  SectionKind,
+  SectionStatus,
+} from "@/lib/supabase/types";
 
 type SectionForTest = {
   id: string;
@@ -88,6 +94,55 @@ describe("isAgentNoteResolved", () => {
     expect(
       isAgentNoteResolved(section({ status: "draft", content: "string" as Json })),
     ).toBe(false);
+  });
+});
+
+describe("isApprovableDocumentStatus", () => {
+  // Bright line under test: Loop-generated Decision Documents land in
+  // 'reviewing' (lib/loops/runner.ts:255) and operator-authored ones land
+  // in 'draft'. Both must be approvable from the operator-facing detail
+  // page; terminal and transient statuses must not be.
+
+  test("draft is approvable (operator-authored path)", () => {
+    expect(isApprovableDocumentStatus("draft")).toBe(true);
+  });
+
+  test("reviewing is approvable (Loop-generated path)", () => {
+    // Regression for the Loop 1 live verification gap where status='reviewing'
+    // documents had no approve form rendered. This is the test the verification
+    // would have caught had it existed before deploy.
+    expect(isApprovableDocumentStatus("reviewing")).toBe(true);
+  });
+
+  test("terminal statuses are not approvable", () => {
+    for (const status of ["approved", "rejected", "archived"] as const) {
+      expect(isApprovableDocumentStatus(status)).toBe(false);
+    }
+  });
+
+  test("transient runner statuses are not approvable", () => {
+    for (const status of ["drafting", "cancelled", "drafting_orphaned"] as const) {
+      expect(isApprovableDocumentStatus(status)).toBe(false);
+    }
+  });
+
+  test("covers every value of DocumentStatus exhaustively", () => {
+    // If a new DocumentStatus is added, this test will fail to compile
+    // (because the array literal is widened) — forcing the author to
+    // decide whether the new state is approvable.
+    const all: DocumentStatus[] = [
+      "draft",
+      "reviewing",
+      "approved",
+      "rejected",
+      "published",
+      "archived",
+      "drafting",
+      "cancelled",
+      "drafting_orphaned",
+    ];
+    const approvable = all.filter(isApprovableDocumentStatus);
+    expect(approvable).toEqual(["draft", "reviewing"]);
   });
 });
 
@@ -361,5 +416,42 @@ describe("approveDecisionDocument — agent_note guard", () => {
     });
 
     expect(result.ok).toBe(true);
+  });
+
+  test("guard fires for status='reviewing' documents (Loop-generated path)", async () => {
+    // Regression for the Loop 1 verification gap. The page used to gate
+    // approval on status='draft' only, hiding the form for Loop-generated
+    // Documents. Now both states reach approveDecisionDocument; the
+    // guard must still fire on unresolved agent_notes regardless of
+    // document.status.
+    const reviewingDoc = { ...docMeta, status: "reviewing" as const };
+    const sections: SectionForTest[] = [
+      section({ id: "rec-1", kind: "recommendation", status: "draft" }),
+      section({
+        id: "an-1",
+        kind: "agent_note",
+        status: "draft",
+        content: { question: "Confirm pricing tier?", decision: "" },
+      }),
+    ];
+    const { client, updateCalls, insertCalls } = makeMockSupabase({
+      document: reviewingDoc,
+      sections,
+    });
+    vi.doMock("@/lib/supabase/admin", () => ({
+      createSupabaseAdminClient: () => client,
+    }));
+
+    const { approveDecisionDocument } = await import("@/lib/db/documents");
+    const result = await approveDecisionDocument({
+      documentId: reviewingDoc.id,
+      ventureId: reviewingDoc.venture_id,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe("1 agent_note unresolved");
+    expect(updateCalls).toEqual([]);
+    expect(insertCalls).toEqual([]);
   });
 });

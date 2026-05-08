@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Document } from "@/components/document/document";
 import {
   getDocumentWithSections,
+  isApprovableDocumentStatus,
   listCommentsForSections,
 } from "@/lib/db/documents";
 import { getVentureBySlug } from "@/lib/db/ventures";
@@ -76,7 +77,12 @@ export default async function DecisionDetailPage({
     label: ctx.document.status.toUpperCase(),
     cls: "text-ink-mute",
   };
-  const isDraft = ctx.document.status === "draft";
+  // Loop-generated Decision Documents land in 'reviewing' (runner.ts:255);
+  // operator-authored ones land in 'draft'. Both must surface the approve
+  // form. The agent_note enforcement guard inside approveDecisionDocument
+  // is independent of document.status — it reads section state — so lifting
+  // this UI gate does not weaken the bright line.
+  const isApprovable = isApprovableDocumentStatus(ctx.document.status);
 
   return (
     <div className="space-y-10">
@@ -155,7 +161,7 @@ export default async function DecisionDetailPage({
           <dd className="font-mono text-ink-mute">{ctx.sections.length}</dd>
         </dl>
 
-        {isDraft && (
+        {isApprovable && (
           <form
             action={approveDecisionDocumentAction}
             className="flex items-center justify-end gap-3"

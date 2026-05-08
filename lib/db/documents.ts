@@ -362,6 +362,23 @@ export function findUnresolvedAgentNotes<
 }
 
 /**
+ * Predicate: is this Document in a status where the operator can approve it?
+ *
+ * Operator-authored Decision Documents land in `draft`. Loop-generated ones
+ * land in `reviewing` (see runner.ts:255). Both are pre-approval states and
+ * both must surface the approve form. Terminal statuses (`approved`,
+ * `rejected`, `archived`) are not re-approvable; transient runner statuses
+ * (`drafting`, `cancelled`, `drafting_orphaned`) are not approvable either.
+ *
+ * Note: this predicate gates UI form rendering only. The agent_note
+ * enforcement guard inside `approveDecisionDocument` is independent — it
+ * reads section state, not document status — and remains the bright line.
+ */
+export function isApprovableDocumentStatus(status: DocumentStatus): boolean {
+  return status === "draft" || status === "reviewing";
+}
+
+/**
  * Approve a Decision Document: flip all its sections to `approved`, the
  * document to `approved`, and write a row into the legacy `decisions` table
  * for backwards-compat with the Sprint 0 schema.
