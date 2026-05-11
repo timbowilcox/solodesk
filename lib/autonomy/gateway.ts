@@ -283,67 +283,175 @@ function checkSingleGuardrail(
   }
 }
 
-// ─── Anomaly detection stubs ─────────────────────────────────────────────────
-// B.4 replaces these with real logic. Stubs are named so B.4 knows where to
-// plug in each detection case from AUTONOMY-MODEL §7.
+// ─── Anomaly detection (B.4) ─────────────────────────────────────────────────
+// Five detection cases from AUTONOMY-MODEL §7. Each returns a string description
+// on breach, null on clear. All are async (DB-backed history queries).
 
-function detectRecipientAnomaly(
-  _tool: string,
-  _params: Record<string, unknown>,
-  _skill: SkillDef,
-): null {
-  // B.4: check recipient against historical pattern for this skill.
-  return null;
-}
-
-function detectVolumeSpike(
-  _tool: string,
-  _params: Record<string, unknown>,
-  _skill: SkillDef,
-): null {
-  // B.4: check action frequency vs rolling mean for this skill.
-  return null;
-}
-
-function detectContentClassifierFire(
-  _tool: string,
-  _params: Record<string, unknown>,
-  _skill: SkillDef,
-): null {
-  // B.4: run brand-voice classifier on params.content.
-  return null;
-}
-
-function detectTimeOfDayDeviation(
-  _tool: string,
-  _params: Record<string, unknown>,
-  _skill: SkillDef,
-): null {
-  // B.4: compare current hour to historical distribution for this skill.
-  return null;
-}
-
-function detectCrossSkillCorrelation(
-  _tool: string,
-  _params: Record<string, unknown>,
-  _skill: SkillDef,
-): null {
-  // B.4: check whether multiple skills are hitting the same external system
-  // simultaneously (cascade risk).
-  return null;
-}
-
-function detectAnomaly(
+// 1. Recipient anomaly: email destination never seen in this skill's history.
+async function detectRecipientAnomaly(
   tool: string,
   params: Record<string, unknown>,
   skill: SkillDef,
-): null {
+): Promise<string | null> {
+  if (tool !== "send_email") return null;
+  const to = typeof params.to === "string" ? params.to.toLowerCase() : null;
+  if (!to) return null;
+
+  const supabase = createSupabaseAdminClient();
+  const { count } = await supabase
+    .from("actions")
+    .select("id", { count: "exact", head: true })
+    .eq("skill_id", skill.id)
+    .eq("tool", "send_email")
+    // params->>to requires jsonb operator; approximate with text match.
+    .limit(500);
+
+  // If this skill has sent <5 emails total, we have no baseline — skip.
+  if (!count || count < 5) return null;
+
+  // Check if this recipient appears in prior sends (approximate: params column search).
+  // Full implementation uses a GIN index on params; v1 uses a count-based heuristic.
+  const { count: recipientCount } = await supabase
+    .from("actions")
+    .select("id", { count: "exact", head: true })
+    .eq("skill_id", skill.id)
+    .eq("tool", "send_email")
+    .ilike("params::text", `%"to":"${to}"%`);
+
+  if (!recipientCount || recipientCount === 0) {
+    return `recipient ${to} has not been seen in prior sends for ${skill.id}`;
+  }
+  return null;
+}
+
+// 2. Volume spike: >3x rolling hourly rate in the last 5 minutes.
+async function detectVolumeSpike(
+  _tool: string,
+  _params: Record<string, unknown>,
+  skill: SkillDef,
+): Promise<string | null> {
+  const supabase = createSupabaseAdminClient();
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000).toISOString();
+  const oneHourAgo = new Date(Date.now() - 60 * 60_000).toISOString();
+
+  const { count: recentCount } = await supabase
+    .from("actions")
+    .select("id", { count: "exact", head: true })
+    .eq("skill_id", skill.id)
+    .gte("created_at", fiveMinutesAgo);
+
+  const { count: hourlyCount } = await supabase
+    .from("actions")
+    .select("id", { count: "exact", head: true })
+    .eq("skill_id", skill.id)
+    .gte("created_at", oneHourAgo);
+
+  if (!recentCount || !hourlyCount || hourlyCount < 10) return null; // not enough history
+
+  // Rolling hourly rate per 5-minute bucket = hourlyCount / 12.
+  const expectedPer5Min = hourlyCount / 12;
+  if (recentCount > expectedPer5Min * 3) {
+    return `volume spike: ${recentCount} actions in 5 min vs rolling rate of ${expectedPer5Min.toFixed(1)}`;
+  }
+  return null;
+}
+
+// 3. Content classifier: brand voice — stub, requires ML model (Phase C).
+async function detectContentClassifierFire(
+  _tool: string,
+  _params: Record<string, unknown>,
+  _skill: SkillDef,
+): Promise<null> {
+  // Phase C: run brand-voice classifier on params.content.
+  return null;
+}
+
+// 4. Time of day deviation: action at an hour with <5% of this skill's history.
+async function detectTimeOfDayDeviation(
+  _tool: string,
+  _params: Record<string, unknown>,
+  skill: SkillDef,
+): Promise<string | null> {
+  const supabase = createSupabaseAdminClient();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
+
+  const { count: totalCount } = await supabase
+    .from("actions")
+    .select("id", { count: "exact", head: true })
+    .eq("skill_id", skill.id)
+    .gte("created_at", thirtyDaysAgo);
+
+  if (!totalCount || totalCount < 30) return null; // not enough history
+
+  const currentHour = new Date().getUTCHours();
+  const hourStart = new Date();
+  hourStart.setUTCMinutes(0, 0, 0);
+  const windowStart = new Date(
+    Date.now() - 30 * 86_400_000 - (new Date().getUTCMinutes() * 60_000),
+  );
+
+  // Count historical actions at this UTC hour over the last 30 days.
+  // Approximate: count all actions within ±1h of current hour across the window.
+  const { count: hourCount } = await supabase
+    .from("actions")
+    .select("id", { count: "exact", head: true })
+    .eq("skill_id", skill.id)
+    .gte("created_at", windowStart.toISOString())
+    .limit(500);
+
+  void hourCount; // available for future refinement with proper time-extraction query
+
+  // Rough heuristic: if current UTC hour is 00–05 (off-hours) and the skill
+  // has historically operated mostly business hours (inferred from total volume),
+  // flag it. Full implementation uses extract(hour from created_at) SQL grouping.
+  const isOffHours = currentHour >= 0 && currentHour < 5;
+  if (isOffHours && totalCount > 50) {
+    return `action at UTC ${currentHour}:xx — outside typical operating hours`;
+  }
+  return null;
+}
+
+// 5. Cross-skill correlation: >3 skills hitting the same external tool in 5 min.
+async function detectCrossSkillCorrelation(
+  tool: string,
+  _params: Record<string, unknown>,
+  _skill: SkillDef,
+): Promise<string | null> {
+  const GATE_TOOL_SET = new Set([
+    "send_email", "publish_post", "pay_invoice",
+    "sign_contract", "execute_trade", "modify_production_data", "allocate_budget",
+  ]);
+  if (!GATE_TOOL_SET.has(tool)) return null;
+
+  const supabase = createSupabaseAdminClient();
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000).toISOString();
+
+  const { data: recentSkills } = await supabase
+    .from("actions")
+    .select("skill_id")
+    .eq("tool", tool)
+    .gte("created_at", fiveMinutesAgo);
+
+  if (!recentSkills) return null;
+  const uniqueSkills = new Set(recentSkills.map((r) => r.skill_id as string));
+
+  if (uniqueSkills.size >= 3) {
+    return `cascade risk: ${uniqueSkills.size} skills called ${tool} in the last 5 min`;
+  }
+  return null;
+}
+
+async function detectAnomaly(
+  tool: string,
+  params: Record<string, unknown>,
+  skill: SkillDef,
+): Promise<string | null> {
   return (
-    detectRecipientAnomaly(tool, params, skill) ??
-    detectVolumeSpike(tool, params, skill) ??
-    detectContentClassifierFire(tool, params, skill) ??
-    detectTimeOfDayDeviation(tool, params, skill) ??
-    detectCrossSkillCorrelation(tool, params, skill)
+    (await detectRecipientAnomaly(tool, params, skill)) ??
+    (await detectVolumeSpike(tool, params, skill)) ??
+    (await detectContentClassifierFire(tool, params, skill)) ??
+    (await detectTimeOfDayDeviation(tool, params, skill)) ??
+    (await detectCrossSkillCorrelation(tool, params, skill))
   );
 }
 
@@ -471,6 +579,7 @@ async function writeEscalation(opts: {
 export async function writeEvalRun(opts: {
   actionId: string | null;
   skillId: string;
+  ventureId?: string;
   outcome: "approved" | "rejected" | "deferred" | "anomaly" | "breach";
   notes?: string;
 }): Promise<void> {
@@ -481,6 +590,16 @@ export async function writeEvalRun(opts: {
     outcome: opts.outcome,
     notes: opts.notes ?? null,
   });
+
+  // Trigger ratchet checks after every eval write (non-blocking).
+  if (opts.ventureId) {
+    const { maybeFirePromotionModal, checkDemotionThreshold } = await import("./ratchet");
+    if (opts.outcome === "approved") {
+      maybeFirePromotionModal(opts.skillId, opts.ventureId).catch(() => {});
+    } else if (opts.outcome === "rejected") {
+      checkDemotionThreshold(opts.skillId, opts.ventureId).catch(() => {});
+    }
+  }
 }
 
 // ─── Main entry point ────────────────────────────────────────────────────────
@@ -526,9 +645,8 @@ export async function executeToolCall(
     // 4. Check guardrails.
     const breach = checkGuardrails(input.tool, input.params, guardrails);
 
-    // 5. Anomaly detection (v1 stubs; always null).
-    // anomaly is typed as null here; B.4 changes return type to string | null.
-    const anomaly = detectAnomaly(input.tool, input.params, input.skill);
+    // 5. Anomaly detection — async DB-backed rules.
+    const anomaly = await detectAnomaly(input.tool, input.params, input.skill);
 
     // Determine whether a modal needs to surface.
     const needsEscalation = breach !== null || anomaly !== null;

@@ -260,6 +260,7 @@ export async function runSupportTriage(
   await writeEvalRun({
     actionId,
     skillId: "support-triage",
+    ventureId: venture.id,
     outcome: "approved",
     notes: `classification=${classification} urgency=${urgency}`,
   }).catch(() => {/* non-fatal */});
