@@ -538,6 +538,7 @@ async function writeModalEvent(opts: {
   scopeId: string;
   scopeType: ModalScopeType;
   actionId: string;
+  payload?: Json | null;
 }): Promise<string> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -547,6 +548,7 @@ async function writeModalEvent(opts: {
       scope_id: opts.scopeId,
       scope_type: opts.scopeType,
       action_id: opts.actionId,
+      payload: opts.payload ?? null,
     })
     .select("id")
     .single();
@@ -555,6 +557,25 @@ async function writeModalEvent(opts: {
     throw new Error(`modal_events insert failed: ${error?.message ?? "unknown"}`);
   }
   return data.id as string;
+}
+
+async function writeDeferredAction(opts: {
+  modalEventId: string;
+  actionId: string;
+  skillId: string;
+  tool: string;
+  params: Record<string, unknown>;
+  ventureId: string | undefined;
+}): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  await supabase.from("deferred_actions").insert({
+    modal_event_id: opts.modalEventId,
+    action_id: opts.actionId,
+    skill_id: opts.skillId,
+    tool: opts.tool,
+    params: opts.params as Json,
+    venture_id: opts.ventureId ?? null,
+  });
 }
 
 async function writeEscalation(opts: {
@@ -703,11 +724,26 @@ export async function executeToolCall(
         reason: breach.detail,
         triggerType: "guardrail_breach",
       });
+      const escalationPayload: Json = {
+        skill_id: input.skill.id,
+        tool: input.tool,
+        breach_type: breach.breached,
+        detail: breach.detail,
+      };
       const modalEventId = await writeModalEvent({
         archetype: "escalation",
         scopeId: input.ventureId ?? input.skill.id,
         scopeType: input.ventureId ? "venture" : "skill",
         actionId,
+        payload: escalationPayload,
+      });
+      await writeDeferredAction({
+        modalEventId,
+        actionId,
+        skillId: input.skill.id,
+        tool: input.tool,
+        params: input.params,
+        ventureId: input.ventureId,
       });
       await finalizeActionsRow(actionId, { durationMs: Date.now() - startedAt });
       return {
@@ -721,11 +757,25 @@ export async function executeToolCall(
 
     // 7b. Anomaly → escalation modal (stub; always skipped in v1).
     if (anomaly !== null) {
+      const anomalyPayload: Json = {
+        skill_id: input.skill.id,
+        tool: input.tool,
+        anomaly,
+      };
       const modalEventId = await writeModalEvent({
         archetype: "escalation",
         scopeId: input.ventureId ?? input.skill.id,
         scopeType: input.ventureId ? "venture" : "skill",
         actionId,
+        payload: anomalyPayload,
+      });
+      await writeDeferredAction({
+        modalEventId,
+        actionId,
+        skillId: input.skill.id,
+        tool: input.tool,
+        params: input.params,
+        ventureId: input.ventureId,
       });
       await finalizeActionsRow(actionId, { durationMs: Date.now() - startedAt });
       return {
@@ -739,11 +789,24 @@ export async function executeToolCall(
 
     // 7c. Decision modal (advise level or operate gate).
     if (needsDecisionModal) {
+      const decisionPayload: Json = {
+        skill_id: input.skill.id,
+        tool: input.tool,
+      };
       const modalEventId = await writeModalEvent({
         archetype: "decision",
         scopeId: input.skill.id,
         scopeType: "skill",
         actionId,
+        payload: decisionPayload,
+      });
+      await writeDeferredAction({
+        modalEventId,
+        actionId,
+        skillId: input.skill.id,
+        tool: input.tool,
+        params: input.params,
+        ventureId: input.ventureId,
       });
       await finalizeActionsRow(actionId, { durationMs: Date.now() - startedAt });
       const reason = (
