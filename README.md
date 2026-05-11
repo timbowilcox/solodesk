@@ -14,7 +14,7 @@ SoloDesk is the operating system Tim runs his portfolio of ventures from — Kou
 
 The brand pivots from the older "AI-native business OS for solo founders" framing to **the operating system for portfolio operators** — people running 2-6 ventures with agents instead of teams. The five-agent / three-layer Context Architecture from the prior SoloDesk concept is superseded by the TCOS ten-loop architecture documented in `/TCOS.md`.
 
-The intent is to run it for ~6 months across all live ventures (Apr-Oct 2026), learn what compounds and what's friction, then make a productisation call on **1 November 2026**. Decision criteria below.
+The intent is to run it across all live ventures, learn what compounds and what's friction, then make a productisation call. Decision criteria below.
 
 ## What this isn't (yet)
 
@@ -121,7 +121,7 @@ solodesk/
 - No design defaults from shadcn or AI-startup convention. The palette, type, and layout grammar in `/.claude/design-system.md` is the law. No purple, no gradients, no soft shadows, no rounded cards, no Geist, no Lucide, no emoji in chrome.
 - Marketing landing stays minimal until there's something real to show — no public promotion of the waitlist before Sprint 4 at earliest.
 
-## Decision: 1 November 2026 productise/don't gate
+## Decision: productise/don't gate
 
 Binary call on whether SoloDesk goes from internal tool to productised SaaS. Decision criteria:
 
@@ -133,5 +133,3 @@ Binary call on whether SoloDesk goes from internal tool to productised SaaS. Dec
 - Is there at least one second design partner who'd pay $200/mo for it?
 - Has Anthropic shipped native features that make 60%+ of SoloDesk redundant?
 - Is the waitlist signal real (not vanity — actual conversations with signups confirming pain)?
-
-Don't drift past this date.
