@@ -211,17 +211,17 @@ DOD highlights:
 
 ## After Sprint 6
 
-The Loop catalogue is feature-complete for v0 single-operator use. Two substrate items remain before the Nov 1 productise call — neither is optional:
+The Loop catalogue is feature-complete for v0 single-operator use. Two substrate items remain before the productise call — neither is optional:
 
-- **Loop 11 — Portfolio audit.** Cross-venture meta-loop. Runs against the full set of authed ventures. Surfaces stale priorities (Document not updated in N days), unused capabilities (Loop never invoked on venture X in M days), missing connections (Loop 8 enabled on a venture but no Stripe connection present), divergence (Loop 8 scoring distribution drifting across venture instances). Output is a portfolio-scope Document of typed Sections, one per finding. Differentiator vs running Claude Code per venture. Runs on the Sprint 2 scheduler — not a parallel cron. Stub at `/.claude/sprints/sprint-7-portfolio-audit.md`. Phase 3 candidate, not gating Nov 1 — the experience layer phase below is the Nov 1 work.
-- **Team inbound — per-venture inbox.** Inbound email forwarder routes messages to the correct venture (recipient subdomain or tag). Role-gated visibility: teammates query SoloDesk for their venture only; the operator sees all. Reuses Resend pipeline and Corum-derived ingest patterns. Required for "OS for portfolio operators" to extend beyond the operator at the centre. Stub at `/.claude/sprints/sprint-7-team-inbound.md`. Gates the Nov 1 productise criteria.
+- **Loop 11 — Portfolio audit.** Cross-venture meta-loop. Runs against the full set of authed ventures. Surfaces stale priorities (Document not updated in N days), unused capabilities (Loop never invoked on venture X in M days), missing connections (Loop 8 enabled on a venture but no Stripe connection present), divergence (Loop 8 scoring distribution drifting across venture instances). Output is a portfolio-scope Document of typed Sections, one per finding. Differentiator vs running Claude Code per venture. Runs on the Sprint 2 scheduler — not a parallel cron. Stub at `/.claude/sprints/sprint-7-portfolio-audit.md`. Phase 3 candidate, not gating the productise call — the experience layer phase below is that work.
+- **Team inbound — per-venture inbox.** Inbound email forwarder routes messages to the correct venture (recipient subdomain or tag). Role-gated visibility: teammates query SoloDesk for their venture only; the operator sees all. Reuses Resend pipeline and Corum-derived ingest patterns. Required for "OS for portfolio operators" to extend beyond the operator at the centre. Stub at `/.claude/sprints/sprint-7-team-inbound.md`. Gates the productise criteria.
 
 Day-to-day operation continues alongside:
 - Per-venture instantiation (COMPANY.md per venture, intel_sources, support forwarding, webhook setup).
 - Rubric tuning. Every Sunday — review week's outputs, update rubrics where reviewers were too soft or too harsh.
 - Compounding. Every failure mode → CLAUDE.md or rubric update. The harness should improve weekly.
 
-**Hard gate at 1 November 2026:** make the productise/don't call. Criteria in README.md.
+Make the productise/don't call. Criteria in README.md.
 
 ---
 
@@ -237,7 +237,7 @@ Five sprints. Productisation phase. Builds the surfaces that make the substrate 
 | 10 | Streaming Sections + Loop 1 conversation | shipped (live invocation operator-verified) | `.archive/handoffs/sprint-10-handoff.md` |
 | 11 | Command bar + Loop 8 reactive | shipped (live webhook operator-verified) | `.archive/handoffs/sprint-11-handoff.md` |
 
-Hard prerequisite for Nov 1 productise gate — **met in code**. Live deploy verification (Loop 1 + Loop 8 webhooks) operator-driven on first deploy. Phase HANDOFF documents operator-load measurement deferred to first-week-after-deploy.
+Hard prerequisite for the productise gate — **met in code**. Live deploy verification (Loop 1 + Loop 8 webhooks) operator-driven on first deploy. Phase HANDOFF documents operator-load measurement deferred to first-week-after-deploy.
 
 ---
 
