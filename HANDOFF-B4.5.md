@@ -1,9 +1,9 @@
-# HANDOFF — Sprint B.4.5: Modal→Action Bridge + Phase B Test Backfill
+# HANDOFF — Sprint B.4.5 + B.4.6: Modal→Action Bridge + Deferred Replay Dispatcher
 
 **Branch:** `phase-b-overnight`
 **Date:** 2026-05-12
-**Status:** Complete — tsc clean, 0 ESLint errors, 233 tests passing (up from 203)
-**Commits:** 4b2c9f1 → f9dfd45 (6 commits)
+**Status:** Complete — tsc clean, 0 ESLint errors, 242 tests passing (up from 203)
+**Commits:** 4b2c9f1 → 2fa9972 (8 commits)
 
 ---
 
@@ -102,20 +102,37 @@ All 8 archetype switch cases pass compile-safe `ModalAction` discriminants.
 Schedule: `*/5 * * * *`. Bearer auth via `CRON_SECRET`.
 
 Two jobs per tick:
-1. **Replay** `status='approved'` rows with `retry_at <= now()` — calls `replayDeferredAction()`.
+1. **Replay** `status='approved'` rows with `retry_at <= now()` — calls `replayApprovedTool()`.
 2. **Re-surface** `status='deferred'` rows with `retry_at <= now()` — writes fresh Promotion modal_events, bumps `retry_at` +7d.
 
-`lib/modals/replay.ts` — tool dispatcher. All gate tools registered with stub implementations (returning `ok: false, error: "...not yet implemented"`). Phase C wires real skill replay.
+### 8. Real replay dispatcher — `lib/autonomy/replay.ts`
 
-### 8. Test backfill — 30 new tests
+Replaces the prior stub. Full implementation:
+
+- **Atomic status guard** — `UPDATE WHERE status='approved'` → `'executing'`. If 0 rows returned, another cron tick already claimed the row; function exits early (concurrency-safe without SELECT FOR UPDATE).
+- **Kill switch** — re-checked at replay time. Approval before kill ≠ permission after kill. Fails with `'kill_switch_engaged'`.
+- **`invoke_loop` handler** — calls `runStreamingLoop` from `lib/loops/runner.ts` with a no-op `emit` callback. Loop runs fully (saves Document to DB) without streaming to anyone. Config sourced from `lib/loops/config.ts`.
+- **Gate tool stubs** — `send_email`, `publish_post`, etc. return controlled `ok:false` for Phase C.
+- **Audit trail** — writes new `actions` row with `via_modal=true`, `deferred_action_id`, `modal_event_id`, and original `autonomy_level` (looked up from the original actions row FK).
+- **Escalation** — only on unexpected handler throws, not controlled `ok:false` returns or `tool_not_found`.
+- **`tool=''`** (Promotion archetype — no tool to replay) → silently marks `'executed'`.
+
+Also extracted `SUPPORTED_LOOPS` to `lib/loops/config.ts` (shared between invoke route and tool registry), and added `task: parsed.data.task` to gateway params so replay can re-execute with the original user prompt.
+
+### 9. Migration 0016 — applied to production
+
+Extends `deferred_actions` status CHECK (`'executing'`, `'executed'` added) and adds `deferred_action_id` + `modal_event_id` FK columns to `actions` for the full modal-approval→replay→action audit trail.
+
+### 10. Test backfill — 39 new tests
 
 | File | Tests | Coverage |
 |---|---|---|
 | `tests/lib/autonomy/ratchet.test.ts` | 10 | eligibility thresholds, demotion guard, maybeFirePromotionModal idempotency |
 | `tests/lib/db/portfolio-audit.test.ts` | 9 | auditDateKey, computePortfolioFindings, generatePortfolioAudit idempotency + highSeverityCount |
 | `tests/api/webhooks/resend-inbound.test.ts` | 13 | auth paths, venture resolution, triage routing (ok/throw/fail), event row written |
+| `tests/lib/autonomy/replay.test.ts` | 9 | happy path, Promotion no-op, tool_not_found, handler throws (escalation), kill switch, concurrent claim guard, missing params, unknown loopId, autonomy_level inheritance |
 
-**233 total** (was 203).
+**242 total** (was 203).
 
 ---
 
@@ -156,6 +173,23 @@ ORDER BY evaluated_at DESC LIMIT 3;
 
 Expected: `modal_events.action_taken = 'approved'`, `deferred_actions.status = 'approved'`, `eval_runs.outcome = 'approved'`.
 
+After the next cron tick (≤5 min), verify the full replay chain:
+
+```sql
+-- 8. Verify deferred_actions completed execution:
+SELECT id, status, replayed_at, error
+FROM deferred_actions
+ORDER BY created_at DESC LIMIT 3;
+-- Expected: status = 'executed', replayed_at IS NOT NULL
+
+-- 9. Verify a new actions row was written with via_modal=true:
+SELECT skill_id, tool, autonomy_level, via_modal, deferred_action_id, modal_event_id
+FROM actions
+WHERE via_modal = true
+ORDER BY created_at DESC LIMIT 3;
+-- Expected: via_modal=true, deferred_action_id and modal_event_id both set
+```
+
 ### Script B — Promotion modal flow
 
 ```sql
@@ -187,8 +221,7 @@ ORDER BY set_at DESC LIMIT 1;
 
 | Item | Location | Notes |
 |---|---|---|
-| Real tool replay | `lib/modals/replay.ts` | Stub handlers return "not yet implemented". Phase C wires real skill invocations. |
-| `via_modal` flag | `lib/autonomy/gateway.ts` | Column exists, not yet set to `true` on replayed actions. Phase C. |
+| Gate tool replay | `lib/autonomy/replay.ts` `TOOL_HANDLERS` | `send_email`, `publish_post` etc. return controlled `ok:false`. Phase C wires real skill invocations. |
 | Skill level command palette | Phase C | Operator manual level adjustment via ⌘K. |
 | Content classifier | `lib/autonomy/gateway.ts` `detectContentClassifierFire` | Real brand-voice classifier call. Phase C. |
 
@@ -219,8 +252,11 @@ The deferred_actions row is the handoff between operator approval and actual too
 
 ```
 supabase/migrations/0015_modal_action_bridge.sql  (new)
+supabase/migrations/0016_replay_dispatcher.sql    (new — applied to production)
 lib/supabase/types.ts
 lib/autonomy/gateway.ts
+lib/autonomy/replay.ts                            (new)
+lib/loops/config.ts                               (new — SUPPORTED_LOOPS extracted)
 lib/modals/types.ts                               (new)
 lib/modals/apply-action.ts                        (new)
 lib/modals/handlers/decision.ts                   (new)
@@ -231,11 +267,12 @@ lib/modals/handlers/insight.ts                    (new)
 lib/modals/handlers/alert.ts                      (new)
 lib/modals/handlers/completion.ts                 (new)
 lib/modals/handlers/question.ts                   (new)
-lib/modals/replay.ts                              (new)
-app/api/cron/deferred-replay/route.ts             (new)
+app/api/loops/[loopId]/invoke/route.ts            (task added to gateway params)
+app/api/cron/deferred-replay/route.ts             (new; updated to use replayApprovedTool)
 components/atrium/ModalQueue.tsx
 vercel.json
 tests/lib/autonomy/ratchet.test.ts               (new)
+tests/lib/autonomy/replay.test.ts                (new)
 tests/lib/db/portfolio-audit.test.ts             (new)
 tests/api/webhooks/resend-inbound.test.ts        (new)
 ROADMAP.md
