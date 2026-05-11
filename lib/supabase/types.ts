@@ -83,6 +83,7 @@ type VenturesRow = {
   intel_sources: Json;
   accent_color: string;
   mark_slug: VentureMarkSlug;
+  support_email: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -98,6 +99,7 @@ type VenturesInsert = {
   intel_sources?: Json;
   accent_color?: string;
   mark_slug?: VentureMarkSlug;
+  support_email?: string | null;
   created_at?: string;
   updated_at?: string;
 };

@@ -34,6 +34,22 @@ export async function getVentureBySlug(
   return data ?? null;
 }
 
+export async function getVentureBySupportEmail(
+  email: string,
+): Promise<VentureRow | null> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("ventures")
+    .select("*")
+    .eq("support_email", email.toLowerCase().trim())
+    .maybeSingle();
+  if (error) {
+    console.error("[ventures] getBySupportEmail failed", error);
+    return null;
+  }
+  return data ?? null;
+}
+
 export async function createVenture(
   input: TablesInsert<"ventures">,
 ): Promise<{ id: string; slug: string } | { error: string }> {
