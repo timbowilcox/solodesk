@@ -1,6 +1,5 @@
 # Handoff: Sprint 11 — Command bar + Loop 8 reactive
 
-**Date:** 2026-05-07
 **Repo:** solodesk
 **Branch:** `main` (head: `a14c583`)
 **Session type:** Build (Sprint 11, experience layer 5 of 5 — final)
