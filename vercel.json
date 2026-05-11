@@ -13,6 +13,10 @@
     {
       "path": "/api/cron/portfolio-audit",
       "schedule": "0 21 * * 0"
+    },
+    {
+      "path": "/api/cron/deferred-replay",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
