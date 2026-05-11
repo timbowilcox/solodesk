@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { replayDeferredAction } from "@/lib/modals/replay";
+import { replayApprovedTool } from "@/lib/autonomy/replay";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
   // Replay approved rows.
   for (const row of readyRows ?? []) {
-    const result = await replayDeferredAction(row.id as string);
+    const result = await replayApprovedTool(row.id as string);
     if (result.ok) {
       replayed.push(row.id as string);
     } else {

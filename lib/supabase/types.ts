@@ -629,6 +629,8 @@ type ActionsRow = {
   autonomy_level: "advise" | "operate" | "steward";
   modal_surfaced: boolean;
   via_modal: boolean;
+  deferred_action_id: string | null;
+  modal_event_id: string | null;
   result: Json | null;
   error: string | null;
   duration_ms: number | null;
@@ -644,6 +646,8 @@ type ActionsInsert = {
   autonomy_level: "advise" | "operate" | "steward";
   modal_surfaced?: boolean;
   via_modal?: boolean;
+  deferred_action_id?: string | null;
+  modal_event_id?: string | null;
   result?: Json | null;
   error?: string | null;
   duration_ms?: number | null;
@@ -760,6 +764,16 @@ type OperatorKillSwitchUpdate = Partial<OperatorKillSwitchInsert>;
 
 // ─── Deferred actions (migration 0015) ───────────────────────────────────────
 
+export type DeferredActionsStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "deferred"
+  | "replayed"
+  | "failed"
+  | "executing"
+  | "executed";
+
 type DeferredActionsRow = {
   id: string;
   modal_event_id: string | null;
@@ -768,7 +782,7 @@ type DeferredActionsRow = {
   tool: string;
   params: Json;
   venture_id: string | null;
-  status: "pending" | "approved" | "rejected" | "deferred" | "replayed" | "failed";
+  status: DeferredActionsStatus;
   retry_at: string;
   replayed_at: string | null;
   error: string | null;
@@ -783,7 +797,7 @@ type DeferredActionsInsert = {
   tool: string;
   params?: Json;
   venture_id?: string | null;
-  status?: "pending" | "approved" | "rejected" | "deferred" | "replayed" | "failed";
+  status?: DeferredActionsStatus;
   retry_at?: string;
   replayed_at?: string | null;
   error?: string | null;

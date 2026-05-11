@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireUserContext } from "@/lib/auth/guard";
 import { canAccessVenture } from "@/lib/auth/membership";
-import { LOOP1_STRATEGY_SKILL_PROMPT } from "@/lib/loops/skills/loop1-strategy";
+import { SUPPORTED_LOOPS } from "@/lib/loops/config";
 import {
   runStreamingLoop,
   type SseEvent,
@@ -35,24 +35,6 @@ const inputSchema = z.object({
   title: z.string().min(1).max(120),
 });
 
-const SUPPORTED_LOOPS: Record<
-  string,
-  {
-    loopName: string;
-    skillPrompt: string;
-    documentType: "decision" | "content" | "intel_digest";
-    budgetTokens: number;
-    budgetCents: number;
-  }
-> = {
-  "01-strategy": {
-    loopName: "01-strategy",
-    skillPrompt: LOOP1_STRATEGY_SKILL_PROMPT,
-    documentType: "decision",
-    budgetTokens: 25_000,
-    budgetCents: 75,
-  },
-};
 
 export async function POST(
   request: NextRequest,
@@ -101,6 +83,8 @@ export async function POST(
       loopId,
       ventureId: parsed.data.ventureId,
       title: parsed.data.title,
+      // task stored so the deferred-replay cron can re-execute with original input
+      task: parsed.data.task,
     },
     ventureId: parsed.data.ventureId,
     operatorId: user.userId,
