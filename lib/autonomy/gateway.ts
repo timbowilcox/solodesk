@@ -464,6 +464,25 @@ async function writeEscalation(opts: {
   });
 }
 
+// ─── Eval runs ───────────────────────────────────────────────────────────────
+// Written after a skill run completes to feed the B.4 trust ratchet.
+// Called by skill runners (support-triage, replier, etc.) after successful completion.
+
+export async function writeEvalRun(opts: {
+  actionId: string | null;
+  skillId: string;
+  outcome: "approved" | "rejected" | "deferred" | "anomaly" | "breach";
+  notes?: string;
+}): Promise<void> {
+  const supabase = createSupabaseAdminClient();
+  await supabase.from("eval_runs").insert({
+    action_id: opts.actionId,
+    skill_id: opts.skillId,
+    outcome: opts.outcome,
+    notes: opts.notes ?? null,
+  });
+}
+
 // ─── Main entry point ────────────────────────────────────────────────────────
 
 /**

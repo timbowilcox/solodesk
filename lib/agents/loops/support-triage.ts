@@ -10,6 +10,8 @@ import { createDocument, type SectionSeed } from "@/lib/db/documents";
 import { getVentureBySlug } from "@/lib/db/ventures";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/types";
+import { executeToolCall, writeEvalRun } from "@/lib/autonomy/gateway";
+import { getSkillDef } from "@/lib/autonomy/skills-registry";
 
 import { runSupportReplier } from "./support-replier";
 
@@ -90,6 +92,23 @@ export async function runSupportTriage(
 ): Promise<RunSupportTriageResult> {
   const venture = await getVentureBySlug(input.ventureSlug);
   if (!venture) return { ok: false, error: "venture not found" };
+
+  // Autonomy gateway check — registers the tool call and enforces level.
+  const skillDef = getSkillDef("support-triage");
+  const gateResult = await executeToolCall({
+    skill: skillDef,
+    tool: "run_support_triage",
+    params: {
+      from: input.fromAddress ?? null,
+      subject: input.subject ?? null,
+    },
+    ventureId: venture.id,
+  });
+  if (!gateResult.ok) return { ok: false, error: `gateway: ${gateResult.error}` };
+  if (!gateResult.executed) {
+    return { ok: false, error: `gated: ${gateResult.reason}` };
+  }
+  const actionId = gateResult.actionId;
 
   const supabase = createSupabaseAdminClient();
   const { data: runRow, error: runError } = await supabase
@@ -235,6 +254,15 @@ export async function runSupportTriage(
       replierLoopRunId = replierResult.loopRunId;
     }
   }
+
+  // Write eval_run for the trust ratchet. At operate level, successful
+  // autonomous triage counts as an implicit operator approval.
+  await writeEvalRun({
+    actionId,
+    skillId: "support-triage",
+    outcome: "approved",
+    notes: `classification=${classification} urgency=${urgency}`,
+  }).catch(() => {/* non-fatal */});
 
   return {
     ok: true,
