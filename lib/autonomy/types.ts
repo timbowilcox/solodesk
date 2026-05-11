@@ -75,7 +75,8 @@ export type ToolCallInput = {
   skill: SkillDef;
   tool: string;
   params: Record<string, unknown>;
-  ventureId: string;
+  /** Optional: global-scope loops (e.g. Loop 11) omit ventureId. */
+  ventureId?: string;
   loopRunId?: string;
   operatorId?: string;
 };

@@ -76,6 +76,13 @@ const REGISTERED_SKILLS: SkillDef[] = [
     hardAdviseOnly: false,
     budgetCents: 200,
   },
+  {
+    id: "portfolio-auditor",
+    loopId: "11-portfolio",
+    level: "operate",
+    hardAdviseOnly: false,
+    budgetCents: 0, // data-only; no LLM spend
+  },
 ];
 
 const registry = new Map<string, SkillDef>(

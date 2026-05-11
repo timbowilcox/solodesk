@@ -145,7 +145,7 @@ export async function computePortfolioFindings(): Promise<Finding[]> {
 }
 
 export type GeneratePortfolioAuditResult =
-  | { ok: true; documentId: string; alreadyExisted: boolean; findingCount: number }
+  | { ok: true; documentId: string; alreadyExisted: boolean; findingCount: number; highSeverityCount: number }
   | { ok: false; error: string };
 
 export async function generatePortfolioAudit(opts: {
@@ -169,6 +169,7 @@ export async function generatePortfolioAudit(opts: {
       documentId: existing.id,
       alreadyExisted: true,
       findingCount: 0,
+      highSeverityCount: 0,
     };
   }
 
@@ -229,6 +230,7 @@ export async function generatePortfolioAudit(opts: {
     documentId: created.documentId,
     alreadyExisted: false,
     findingCount: findings.length,
+    highSeverityCount: findings.filter((f) => f.severity === "high").length,
   };
 }
 

@@ -56,7 +56,7 @@ const SCOPE_PRECEDENCE: Record<string, number> = {
 
 export async function resolveAutonomyLevel(
   skill: SkillDef,
-  ventureId: string,
+  ventureId: string | undefined,
 ): Promise<EffectiveLevel> {
   const supabase = createSupabaseAdminClient();
 
@@ -127,7 +127,7 @@ export async function resolveAutonomyLevel(
 
 export async function resolveGuardrails(
   skill: SkillDef,
-  ventureId: string,
+  ventureId: string | undefined,
 ): Promise<Guardrail[]> {
   const supabase = createSupabaseAdminClient();
 
@@ -483,7 +483,7 @@ export async function checkKillSwitch(operatorId?: string): Promise<boolean> {
 
 async function writeActionsRow(opts: {
   skillId: string;
-  ventureId: string;
+  ventureId: string | undefined;
   tool: string;
   params: Record<string, unknown>;
   autonomyLevel: AutonomyLevel;
@@ -570,6 +570,36 @@ async function writeEscalation(opts: {
     reason: opts.reason,
     trigger_type: opts.triggerType,
   });
+}
+
+// ─── Public modal helpers ─────────────────────────────────────────────────────
+
+/**
+ * Surface an Insight modal to the operator. Used by data-only loop runners
+ * (e.g. Loop 11 portfolio audit) that don't go through executeToolCall
+ * but still need to notify the operator of high-severity findings.
+ */
+export async function fireInsightModal(opts: {
+  scopeId: string;
+  scopeType: ModalScopeType;
+  actionId?: string | null;
+}): Promise<string> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("modal_events")
+    .insert({
+      archetype: "insight" as const,
+      scope_id: opts.scopeId,
+      scope_type: opts.scopeType,
+      action_id: opts.actionId ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`modal_events (insight) insert failed: ${error?.message ?? "unknown"}`);
+  }
+  return data.id as string;
 }
 
 // ─── Eval runs ───────────────────────────────────────────────────────────────
@@ -675,8 +705,8 @@ export async function executeToolCall(
       });
       const modalEventId = await writeModalEvent({
         archetype: "escalation",
-        scopeId: input.ventureId,
-        scopeType: "venture",
+        scopeId: input.ventureId ?? input.skill.id,
+        scopeType: input.ventureId ? "venture" : "skill",
         actionId,
       });
       await finalizeActionsRow(actionId, { durationMs: Date.now() - startedAt });
@@ -693,8 +723,8 @@ export async function executeToolCall(
     if (anomaly !== null) {
       const modalEventId = await writeModalEvent({
         archetype: "escalation",
-        scopeId: input.ventureId,
-        scopeType: "venture",
+        scopeId: input.ventureId ?? input.skill.id,
+        scopeType: input.ventureId ? "venture" : "skill",
         actionId,
       });
       await finalizeActionsRow(actionId, { durationMs: Date.now() - startedAt });
