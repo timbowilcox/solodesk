@@ -628,6 +628,7 @@ type ActionsRow = {
   params: Json;
   autonomy_level: "advise" | "operate" | "steward";
   modal_surfaced: boolean;
+  via_modal: boolean;
   result: Json | null;
   error: string | null;
   duration_ms: number | null;
@@ -642,6 +643,7 @@ type ActionsInsert = {
   params?: Json;
   autonomy_level: "advise" | "operate" | "steward";
   modal_surfaced?: boolean;
+  via_modal?: boolean;
   result?: Json | null;
   error?: string | null;
   duration_ms?: number | null;
@@ -712,6 +714,7 @@ type ModalEventsRow = {
   dismissed_at: string | null;
   action_taken: string | null;
   time_to_action_ms: number | null;
+  payload: Json | null;
 };
 
 type ModalEventsInsert = {
@@ -732,6 +735,7 @@ type ModalEventsInsert = {
   dismissed_at?: string | null;
   action_taken?: string | null;
   time_to_action_ms?: number | null;
+  payload?: Json | null;
 };
 
 type ModalEventsUpdate = Partial<ModalEventsInsert>;
@@ -753,6 +757,40 @@ type OperatorKillSwitchInsert = {
 };
 
 type OperatorKillSwitchUpdate = Partial<OperatorKillSwitchInsert>;
+
+// ─── Deferred actions (migration 0015) ───────────────────────────────────────
+
+type DeferredActionsRow = {
+  id: string;
+  modal_event_id: string | null;
+  action_id: string | null;
+  skill_id: string;
+  tool: string;
+  params: Json;
+  venture_id: string | null;
+  status: "pending" | "approved" | "rejected" | "deferred" | "replayed" | "failed";
+  retry_at: string;
+  replayed_at: string | null;
+  error: string | null;
+  created_at: string;
+};
+
+type DeferredActionsInsert = {
+  id?: string;
+  modal_event_id?: string | null;
+  action_id?: string | null;
+  skill_id: string;
+  tool: string;
+  params?: Json;
+  venture_id?: string | null;
+  status?: "pending" | "approved" | "rejected" | "deferred" | "replayed" | "failed";
+  retry_at?: string;
+  replayed_at?: string | null;
+  error?: string | null;
+  created_at?: string;
+};
+
+type DeferredActionsUpdate = Partial<DeferredActionsInsert>;
 
 export type Database = {
   public: {
@@ -929,6 +967,12 @@ export type Database = {
         Row: OperatorKillSwitchRow;
         Insert: OperatorKillSwitchInsert;
         Update: OperatorKillSwitchUpdate;
+        Relationships: NoRelationships;
+      };
+      deferred_actions: {
+        Row: DeferredActionsRow;
+        Insert: DeferredActionsInsert;
+        Update: DeferredActionsUpdate;
         Relationships: NoRelationships;
       };
     };
