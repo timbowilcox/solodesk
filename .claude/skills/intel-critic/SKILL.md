@@ -6,6 +6,8 @@ counterpart: intel-scout
 budget_tokens: 15000
 budget_cents: 40
 model: claude-opus-4-7
+level: operate
+hard_advise_only: false
 ---
 
 # intel-critic

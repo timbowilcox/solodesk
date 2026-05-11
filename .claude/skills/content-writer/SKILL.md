@@ -6,6 +6,8 @@ counterpart: content-critic
 budget_tokens: 15000
 budget_cents: 30
 model: claude-opus-4-7
+level: operate
+hard_advise_only: false
 ---
 
 # content-writer

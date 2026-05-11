@@ -6,6 +6,8 @@ counterpart: null
 budget_tokens: 4000
 budget_cents: 5
 model: claude-haiku-4-5-20251001
+level: operate
+hard_advise_only: false
 ---
 
 # support-triage

@@ -8,6 +8,8 @@ import {
   runStreamingLoop,
   type SseEvent,
 } from "@/lib/loops/runner";
+import { executeToolCall } from "@/lib/autonomy/gateway";
+import type { SkillDef } from "@/lib/autonomy/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,6 +81,48 @@ export async function POST(
   });
   if (!allowed) {
     return NextResponse.json({ error: "venture not accessible" }, { status: 404 });
+  }
+
+  // Autonomy gateway check. The loop invocation is a tool call routed through
+  // the gateway before the SSE stream opens. At advise level this returns a
+  // modal event ID so the operator can approve; at operate/steward it proceeds.
+  const skillDef: SkillDef = {
+    id: loopId,
+    loopId: config.loopName,
+    level: "operate",
+    hardAdviseOnly: false,
+    budgetCents: config.budgetCents,
+  };
+
+  const gateResult = await executeToolCall({
+    skill: skillDef,
+    tool: "invoke_loop",
+    params: {
+      loopId,
+      ventureId: parsed.data.ventureId,
+      title: parsed.data.title,
+    },
+    ventureId: parsed.data.ventureId,
+    operatorId: user.userId,
+  });
+
+  if (!gateResult.ok) {
+    return NextResponse.json(
+      { error: "gateway error", detail: gateResult.error },
+      { status: 503 },
+    );
+  }
+
+  if (!gateResult.executed) {
+    return NextResponse.json(
+      {
+        gated: true,
+        reason: gateResult.reason,
+        actionId: gateResult.actionId,
+        modalEventId: gateResult.modalEventId,
+      },
+      { status: 202 },
+    );
   }
 
   // SSE response. We construct a ReadableStream that the runner writes

@@ -24,6 +24,8 @@ import type {
   AnomalyFingerprintSource,
   Json,
 } from "@/lib/supabase/types";
+import { executeToolCall } from "@/lib/autonomy/gateway";
+import type { SkillDef } from "@/lib/autonomy/types";
 
 const LOOP8_BUDGET_TOKENS = 18_000;
 const LOOP8_BUDGET_CENTS = 60;
@@ -55,6 +57,14 @@ export type Loop8TriggerResult =
  * invocations (webhook); the command bar calls the underlying runner
  * directly so it can stream to the operator's UI.
  */
+const LOOP8_SKILL_DEF: SkillDef = {
+  id: "08-metrics",
+  loopId: "08-metrics-investigator",
+  level: "operate",
+  hardAdviseOnly: false,
+  budgetCents: LOOP8_BUDGET_CENTS,
+};
+
 export async function triggerLoop8(
   input: Loop8TriggerInput,
 ): Promise<Loop8TriggerResult> {
@@ -68,6 +78,26 @@ export async function triggerLoop8(
   });
   if (isDup) {
     return { ok: true, deduped: true };
+  }
+
+  // Autonomy gateway check before runner invocation.
+  const gateResult = await executeToolCall({
+    skill: LOOP8_SKILL_DEF,
+    tool: "invoke_loop",
+    params: {
+      loopId: "08-metrics",
+      ventureId: input.ventureId,
+      source: input.source,
+    },
+    ventureId: input.ventureId,
+  });
+
+  if (!gateResult.ok) {
+    return { ok: false, error: `gateway error: ${gateResult.error}` };
+  }
+  if (!gateResult.executed) {
+    // Gated: advise modal surfaced; loop does not run.
+    return { ok: false, error: `gated: ${gateResult.reason}` };
   }
 
   // Discard SSE events — webhook/cron triggers are background; we don't

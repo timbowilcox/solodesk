@@ -6,6 +6,8 @@ counterpart: adversarial-strategy
 budget_tokens: 25000
 budget_cents: 50
 model: claude-opus-4-7
+level: operate
+hard_advise_only: false
 ---
 
 # office-hours

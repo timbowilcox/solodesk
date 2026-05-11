@@ -1,75 +1,90 @@
-# Handoff: date-strip pass — planning docs
+# HANDOFF — Sprint B.1: Autonomy Control Plane
 
-**Repo:** solodesk
-**Branch:** `claude/affectionate-morse-ae1ddc`
-**Session type:** Maintenance (project-timeline date removal)
-**Author:** Claude (Sonnet 4.6) under Tim's harness
-
-Task: strip all project-timeline dates and timeframe commitments from root planning markdown files so the repo can be shared or reviewed without embedding hard commitments.
+**Branch:** `phase-b-overnight`
+**Status:** Complete — tsc clean, 0 ESLint errors, 203 tests passing, build green
 
 ---
 
-## Files touched
+## What shipped
 
-| File | Changes | Commit |
-|---|---|---|
-| `SPRINT.md` | Removed `**Date:** 2026-05-07` header line | `ccfe689` |
-| `HANDOFF.md` | Removed `**Date:** 2026-05-07` header line | `72425c2` |
-| `README.md` | Removed `(Apr-Oct 2026)` + `1 November 2026` from intent sentence; stripped date from `## Decision:` header; removed `Don't drift past this date.` | `4e267c7` |
-| `ROADMAP.md` | Replaced 5× `Nov 1` / `1 November 2026` references: productise-call section, Loop 11 + team-inbound bullets, hard-gate line, experience-layer prerequisite line | `7a42b13` |
+### Database — migration 0013_autonomy_control_plane.sql
 
-**Total references removed: 10**
+Seven new tables, applied to Supabase production (ap-southeast-2):
 
-`COMPANY.template.md` — no edits made (see flagged items below).
-
----
-
-## Items not auto-removed — flagged for your review
-
-### 1. Business-rule dates (content, not project timeline)
-
-Two places encode "Realtelligence must not mention RealStyler before November 2026" as a venture anti-pattern. Removing the date changes the rule from a time-bounded constraint to a permanent ban. Needs your call.
-
-| File | Line | Content |
-|---|---|---|
-| `ROADMAP.md` | 173 | `- Realtelligence anti-pattern enforced: critic auto-rejects any draft that mentions RealStyler before Nov 2026.` |
-| `COMPANY.template.md` | 44 | `- Realtelligence: must not mention RealStyler before November 2026` |
-
-**Options:** (a) remove the date entirely — rule becomes permanent; (b) replace with a relative anchor like "before RealStyler public launch"; (c) leave as-is if this constraint has already expired.
-
----
-
-### 2. Evaluation-criterion durations (README.md)
-
-These are in the productise/don't criteria section. They reference duration as a quality bar, not a project deadline, but they contain month counts.
-
-| Line | Content |
+| Table | Purpose |
 |---|---|
-| 128 | `- Has it survived 6 months without major rebuild?` |
-| 129 | `- Has the rubric library actually compounded (measurable: rejection rate of agent outputs at 4-6 weeks vs at month 5)?` |
+| `autonomy_levels` | Scope-level autonomy settings (operator/venture/loop/skill) |
+| `guardrails` | Declarative constraints per scope |
+| `actions` | Audit trail — written BEFORE every tool call (fail-closed) |
+| `escalations` | Gateway escalation records |
+| `eval_runs` | Substrate for B.4 trust ratchet |
+| `modal_events` | Modal surfacing telemetry (substrate for B.2) |
+| `operator_kill_switch` | Single-row-per-operator global kill switch |
 
-**Recommendation:** leave these — they describe what you're measuring, not when the project ends. But if you want them gone, replace "6 months" with "the full run" and "4-6 weeks vs at month 5" with "early run vs late run".
+`ensure_kill_switch_row(p_operator_id uuid)` plpgsql helper added.
+
+### Code — `/lib/autonomy/`
+
+- **`types.ts`** — All shared types: `AutonomyLevel`, `ScopeType`, `GuardrailType`, `ModalArchetype`, `EscalationTrigger`, `EvalOutcome`, `SkillDef`, `EffectiveLevel`, `Guardrail`, `GuardrailBreach`, `ToolCallInput`, `ToolCallResult`, `KillSwitchState`
+
+- **`gateway.ts`** — Main enforcement point. `executeToolCall()` is the single entry for all tool calls. Scope precedence: skill(0) > loop(1) > venture(2) > operator(3). Five anomaly detection stubs wired for B.4. Fail-closed on audit row insert error. All gate tools (send_email, publish_post, pay_invoice, sign_contract, execute_trade, modify_production_data, allocate_budget) require operate_gate modal even at operate level.
+
+- **`skills-registry.ts`** — Runtime registry of 9 skills at `operate` level. `getSkillDef()` falls back to advise for unknown skills.
+
+- **`kill-switch.ts`** — Server actions: `killAllAutonomy()`, `restoreAutonomy()`, `getKillSwitchState()`. All use `requireUserContext()`.
+
+- **`index.ts`** — Barrel export.
+
+### Code — `/lib/skills/load.ts`
+
+Parses SKILL.md frontmatter and registers skills into the gateway's skills-registry. Validates required fields; throws on missing `level`.
+
+### SKILL.md frontmatter updates (8 files)
+
+All existing skills updated with `level: operate` and `hard_advise_only: false`:
+`office-hours`, `adversarial-strategy`, `content-writer`, `content-critic`, `support-triage`, `support-replier`, `intel-scout`, `intel-critic`
+
+### DB types — `/lib/supabase/types.ts`
+
+Seven new table Row/Insert/Update type alias sets + seven `Database.public.Tables` entries. `ensure_kill_switch_row` added to `Database.public.Functions`.
+
+### Retrofit — invoke route
+
+`app/api/loops/[loopId]/invoke/route.ts` now calls `executeToolCall()` before opening the SSE stream. At advise level: returns 202 `{ gated: true, reason, actionId, modalEventId }`. At operate level with non-gate tool: proceeds with `runStreamingLoop`.
+
+### Retrofit — Loop 8 reactive
+
+`lib/loops/loop-8/reactive.ts` calls `executeToolCall()` before `runStreamingLoop`. Gated result returns `{ ok: false, error: "gated: ..." }`.
+
+### Tests — `tests/lib/autonomy/gateway.test.ts`
+
+30 unit tests covering:
+- `isGate` pure function
+- `checkGuardrails` all 7 guardrail types (budget_cap, recipient_allowlist, topic_blocklist, time_window, and stubs)
+- `resolveAutonomyLevel` scope precedence (skill > venture, operator global apply, cross-venture isolation, hard_advise_only override)
+- `checkKillSwitch` v0 single-operator mode
+- `executeToolCall` routing decisions (operate+non-gate executes, kill switch gates, advise gates, operate+gate gates, guardrail breach gates, fail-closed on DB error)
 
 ---
 
-## Items confirmed as runtime config — kept intentionally
+## Decisions made (unattended)
 
-| File | Content | Reason |
-|---|---|---|
-| `HANDOFF.md` | `last 7 days` | Metric window in cron description |
-| `ROADMAP.md` | `created_at < now() - 30 days` | SQL query parameter |
-| `README.md` | `claude-haiku-4-5-20251001` | Model identifier |
-| `CLAUDE.md` | `claude-haiku-4-5-20251001` | Model identifier |
+See `DECISIONS-UNATTENDED.md`. Key:
+
+- **B.1-D1:** All 9 existing skills registered at `operate` (not `advise`) so the system continues functioning before B.2 modal UI ships.
+- **B.1-D2:** Gateway injected at invoke-API layer, not inside `runStreamingLoop`, to avoid row cleanup on gate results.
+- **B.1-D3:** Kill switch v0 checks any `killed=true` row (no operatorId threading needed in single-operator mode).
 
 ---
 
-## Grep verification
+## Blockers inherited
 
-After edits, `grep -rEi "(20[0-9]{2}|january|...|november|...) SPRINT.md HANDOFF.md README.md ROADMAP.md COMPANY.template.md` returns only:
+See `BLOCKERS.md`:
+- B.2: Visual library commission and Söhne font licence (non-blocking for substrate)
+- B.6: DNS routing for inbound email; Resend webhook secret
 
-- `SPRINT.md:103` — false positive (ripgrep boundary match on "processes"; no date in content)
-- `README.md:62` — model identifier `claude-haiku-4-5-20251001`
-- `ROADMAP.md:173` — flagged item #1 above
-- `COMPANY.template.md:44` — flagged item #1 above
+---
 
-Duration grep returns only runtime config values plus the two flagged evaluation-criterion lines in README.md.
+## What's next
+
+**Sprint B.2:** Atrium modal foundation — glass modal container, 8 archetype components, modal queue, keyboard navigation, modal_events telemetry, frequency budget alarms, ⌘⇧. kill switch keybinding.

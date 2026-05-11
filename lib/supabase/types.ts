@@ -556,6 +556,202 @@ type AnomalyFingerprintsInsert = {
 
 type AnomalyFingerprintsUpdate = Partial<AnomalyFingerprintsInsert>;
 
+// ─── Autonomy control plane types (migration 0013) ───────────────────────────
+
+type AutonomyLevelsRow = {
+  id: string;
+  scope_type: "operator" | "venture" | "loop" | "skill";
+  scope_id: string;
+  level: "advise" | "operate" | "steward";
+  set_at: string;
+  set_by: string | null;
+  hard_advise_only: boolean;
+  created_at: string;
+};
+
+type AutonomyLevelsInsert = {
+  id?: string;
+  scope_type: "operator" | "venture" | "loop" | "skill";
+  scope_id: string;
+  level: "advise" | "operate" | "steward";
+  set_at?: string;
+  set_by?: string | null;
+  hard_advise_only?: boolean;
+  created_at?: string;
+};
+
+type AutonomyLevelsUpdate = Partial<AutonomyLevelsInsert>;
+
+type GuardrailsRow = {
+  id: string;
+  scope_type: "operator" | "venture" | "loop" | "skill";
+  scope_id: string;
+  guardrail_type:
+    | "budget_cap"
+    | "communication_cap"
+    | "recipient_allowlist"
+    | "brand_voice"
+    | "topic_blocklist"
+    | "time_window"
+    | "volume_cap";
+  config: Json;
+  active: boolean;
+  created_at: string;
+};
+
+type GuardrailsInsert = {
+  id?: string;
+  scope_type: "operator" | "venture" | "loop" | "skill";
+  scope_id: string;
+  guardrail_type:
+    | "budget_cap"
+    | "communication_cap"
+    | "recipient_allowlist"
+    | "brand_voice"
+    | "topic_blocklist"
+    | "time_window"
+    | "volume_cap";
+  config?: Json;
+  active?: boolean;
+  created_at?: string;
+};
+
+type GuardrailsUpdate = Partial<GuardrailsInsert>;
+
+type ActionsRow = {
+  id: string;
+  skill_id: string;
+  venture_id: string | null;
+  tool: string;
+  params: Json;
+  autonomy_level: "advise" | "operate" | "steward";
+  modal_surfaced: boolean;
+  result: Json | null;
+  error: string | null;
+  duration_ms: number | null;
+  created_at: string;
+};
+
+type ActionsInsert = {
+  id?: string;
+  skill_id: string;
+  venture_id?: string | null;
+  tool: string;
+  params?: Json;
+  autonomy_level: "advise" | "operate" | "steward";
+  modal_surfaced?: boolean;
+  result?: Json | null;
+  error?: string | null;
+  duration_ms?: number | null;
+  created_at?: string;
+};
+
+type ActionsUpdate = Partial<ActionsInsert>;
+
+type EscalationsRow = {
+  id: string;
+  action_id: string;
+  skill_id: string;
+  reason: string;
+  trigger_type: "guardrail_breach" | "anomaly" | "classifier_fail" | "config_error";
+  escalated_at: string;
+  resolved_at: string | null;
+  resolution: "approved" | "rejected" | "demoted" | null;
+};
+
+type EscalationsInsert = {
+  id?: string;
+  action_id: string;
+  skill_id: string;
+  reason: string;
+  trigger_type: "guardrail_breach" | "anomaly" | "classifier_fail" | "config_error";
+  escalated_at?: string;
+  resolved_at?: string | null;
+  resolution?: "approved" | "rejected" | "demoted" | null;
+};
+
+type EscalationsUpdate = Partial<EscalationsInsert>;
+
+type EvalRunsRow = {
+  id: string;
+  action_id: string | null;
+  skill_id: string;
+  outcome: "approved" | "rejected" | "deferred" | "anomaly" | "breach";
+  notes: string | null;
+  evaluated_at: string;
+};
+
+type EvalRunsInsert = {
+  id?: string;
+  action_id?: string | null;
+  skill_id: string;
+  outcome: "approved" | "rejected" | "deferred" | "anomaly" | "breach";
+  notes?: string | null;
+  evaluated_at?: string;
+};
+
+type EvalRunsUpdate = Partial<EvalRunsInsert>;
+
+type ModalEventsRow = {
+  id: string;
+  archetype:
+    | "decision"
+    | "brief"
+    | "insight"
+    | "alert"
+    | "completion"
+    | "question"
+    | "promotion"
+    | "escalation";
+  scope_id: string;
+  scope_type: "operator" | "venture" | "loop" | "skill";
+  action_id: string | null;
+  fired_at: string;
+  dismissed_at: string | null;
+  action_taken: string | null;
+  time_to_action_ms: number | null;
+};
+
+type ModalEventsInsert = {
+  id?: string;
+  archetype:
+    | "decision"
+    | "brief"
+    | "insight"
+    | "alert"
+    | "completion"
+    | "question"
+    | "promotion"
+    | "escalation";
+  scope_id: string;
+  scope_type: "operator" | "venture" | "loop" | "skill";
+  action_id?: string | null;
+  fired_at?: string;
+  dismissed_at?: string | null;
+  action_taken?: string | null;
+  time_to_action_ms?: number | null;
+};
+
+type ModalEventsUpdate = Partial<ModalEventsInsert>;
+
+type OperatorKillSwitchRow = {
+  operator_id: string;
+  killed: boolean;
+  killed_at: string | null;
+  killed_reason: string | null;
+  restored_at: string | null;
+};
+
+type OperatorKillSwitchInsert = {
+  operator_id: string;
+  killed?: boolean;
+  killed_at?: string | null;
+  killed_reason?: string | null;
+  restored_at?: string | null;
+};
+
+type OperatorKillSwitchUpdate = Partial<OperatorKillSwitchInsert>;
+
 export type Database = {
   public: {
     Tables: {
@@ -691,6 +887,48 @@ export type Database = {
         Update: LooseRow;
         Relationships: NoRelationships;
       };
+      autonomy_levels: {
+        Row: AutonomyLevelsRow;
+        Insert: AutonomyLevelsInsert;
+        Update: AutonomyLevelsUpdate;
+        Relationships: NoRelationships;
+      };
+      guardrails: {
+        Row: GuardrailsRow;
+        Insert: GuardrailsInsert;
+        Update: GuardrailsUpdate;
+        Relationships: NoRelationships;
+      };
+      actions: {
+        Row: ActionsRow;
+        Insert: ActionsInsert;
+        Update: ActionsUpdate;
+        Relationships: NoRelationships;
+      };
+      escalations: {
+        Row: EscalationsRow;
+        Insert: EscalationsInsert;
+        Update: EscalationsUpdate;
+        Relationships: NoRelationships;
+      };
+      eval_runs: {
+        Row: EvalRunsRow;
+        Insert: EvalRunsInsert;
+        Update: EvalRunsUpdate;
+        Relationships: NoRelationships;
+      };
+      modal_events: {
+        Row: ModalEventsRow;
+        Insert: ModalEventsInsert;
+        Update: ModalEventsUpdate;
+        Relationships: NoRelationships;
+      };
+      operator_kill_switch: {
+        Row: OperatorKillSwitchRow;
+        Insert: OperatorKillSwitchInsert;
+        Update: OperatorKillSwitchUpdate;
+        Relationships: NoRelationships;
+      };
     };
     Views: {
       embedding_backlog: {
@@ -711,6 +949,10 @@ export type Database = {
       };
     };
     Functions: {
+      ensure_kill_switch_row: {
+        Args: { p_operator_id: string };
+        Returns: void;
+      };
       match_decisions: {
         Args: {
           p_venture_id: string;

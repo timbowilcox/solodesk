@@ -6,6 +6,8 @@ counterpart: null
 budget_tokens: 18000
 budget_cents: 40
 model: claude-opus-4-7
+level: operate
+hard_advise_only: false
 ---
 
 # support-replier
