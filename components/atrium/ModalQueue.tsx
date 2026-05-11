@@ -17,6 +17,8 @@ import {
 } from "react";
 import { loadPendingModalQueue, recordModalDismiss, checkFrequencyBudget } from "@/lib/atrium/telemetry";
 import { triggerKillSwitch } from "@/lib/atrium/kill-switch";
+import { applyModalAction } from "@/lib/modals/apply-action";
+import type { ModalAction } from "@/lib/modals/types";
 import { ModalContainer } from "./ModalContainer";
 import { DecisionModal }   from "./archetypes/DecisionModal";
 import { BriefModal }      from "./archetypes/BriefModal";
@@ -104,18 +106,18 @@ export function AtriumModalProvider({ children }: { children: React.ReactNode })
     setCursor((c) => Math.max(0, c - 1));
   }, [queue, cursor]);
 
-  const dismissWithAction = useCallback((actionTaken: string) => {
+  const dismissWithAction = useCallback((modalAction: ModalAction) => {
     const current = queue[cursor];
     if (!current) return;
 
-    recordModalDismiss({
-      modalEventId: current.id,
-      actionTaken,
-      firedAt: current.firedAt,
-    }).catch(() => {});
-
+    // Optimistic dismiss — server action fires async.
     setQueue((prev) => prev.filter((_, i) => i !== cursor));
     setCursor((c) => Math.max(0, c - 1));
+
+    applyModalAction({
+      modalEventId: current.id,
+      action: modalAction,
+    }).catch(() => {});
   }, [queue, cursor]);
 
   const nextModal = useCallback(() => {
@@ -206,7 +208,7 @@ function ModalRenderer({
   event: AtriumModalEvent;
   queueCount: number;
   onDismiss: () => void;
-  onDismissWithAction: (action: string) => void;
+  onDismissWithAction: (action: ModalAction) => void;
 }) {
   const nonDismissable = event.archetype === "decision" || event.archetype === "escalation";
 
@@ -233,16 +235,16 @@ function ArchetypeRenderer({
 }: {
   event: AtriumModalEvent;
   onDismiss: () => void;
-  onDismissWithAction: (action: string) => void;
+  onDismissWithAction: (action: ModalAction) => void;
 }) {
   switch (event.archetype) {
     case "decision":
       return (
         <DecisionModal
           event={event}
-          onApprove={() => onDismissWithAction("approved")}
-          onRefine={() => onDismissWithAction("refine")}
-          onReject={() => onDismissWithAction("rejected")}
+          onApprove={() => onDismissWithAction({ archetype: "decision", action: "approved" })}
+          onRefine={() => onDismissWithAction({ archetype: "decision", action: "refined" })}
+          onReject={() => onDismissWithAction({ archetype: "decision", action: "rejected" })}
         />
       );
 
@@ -250,9 +252,9 @@ function ArchetypeRenderer({
       return (
         <BriefModal
           event={event}
-          onOpenQueue={() => onDismissWithAction("open_queue")}
-          onMarkRead={() => onDismissWithAction("mark_read")}
-          onDismiss={() => onDismissWithAction("dismissed")}
+          onOpenQueue={() => onDismissWithAction({ archetype: "brief", action: "open_queue" })}
+          onMarkRead={() => onDismissWithAction({ archetype: "brief", action: "mark_read" })}
+          onDismiss={() => onDismissWithAction({ archetype: "brief", action: "dismissed" })}
         />
       );
 
@@ -260,9 +262,9 @@ function ArchetypeRenderer({
       return (
         <InsightModal
           event={event}
-          onTakeAction={() => onDismissWithAction("take_action")}
-          onSnooze={() => onDismissWithAction("snoozed")}
-          onDismiss={() => onDismissWithAction("dismissed")}
+          onTakeAction={() => onDismissWithAction({ archetype: "insight", action: "take_action" })}
+          onSnooze={() => onDismissWithAction({ archetype: "insight", action: "snoozed" })}
+          onDismiss={() => onDismissWithAction({ archetype: "insight", action: "dismissed" })}
         />
       );
 
@@ -270,8 +272,8 @@ function ArchetypeRenderer({
       return (
         <AlertModal
           event={event}
-          onTakeAction={() => onDismissWithAction("take_action")}
-          onAcknowledge={() => onDismissWithAction("acknowledged")}
+          onTakeAction={() => onDismissWithAction({ archetype: "alert", action: "take_action" })}
+          onAcknowledge={() => onDismissWithAction({ archetype: "alert", action: "acknowledged" })}
         />
       );
 
@@ -279,8 +281,8 @@ function ArchetypeRenderer({
       return (
         <CompletionModal
           event={event}
-          onOpenCanvas={() => onDismissWithAction("open_canvas")}
-          onDismiss={() => onDismissWithAction("dismissed")}
+          onOpenCanvas={() => onDismissWithAction({ archetype: "completion", action: "open_canvas" })}
+          onDismiss={() => onDismissWithAction({ archetype: "completion", action: "dismissed" })}
         />
       );
 
@@ -288,8 +290,8 @@ function ArchetypeRenderer({
       return (
         <QuestionModal
           event={event}
-          onPick={(optionId) => onDismissWithAction(`picked:${optionId}`)}
-          onDefer={() => onDismissWithAction("deferred")}
+          onPick={(option) => onDismissWithAction({ archetype: "question", action: "pick_option", option })}
+          onDefer={() => onDismissWithAction({ archetype: "question", action: "deferred" })}
         />
       );
 
@@ -297,9 +299,9 @@ function ArchetypeRenderer({
       return (
         <PromotionModal
           event={event}
-          onPromote={() => onDismissWithAction("promoted")}
-          onKeep={() => onDismissWithAction("kept")}
-          onDefer={() => onDismissWithAction("deferred")}
+          onPromote={() => onDismissWithAction({ archetype: "promotion", action: "promoted" })}
+          onKeep={() => onDismissWithAction({ archetype: "promotion", action: "keep_current" })}
+          onDefer={() => onDismissWithAction({ archetype: "promotion", action: "decide_later" })}
         />
       );
 
@@ -307,10 +309,10 @@ function ArchetypeRenderer({
       return (
         <EscalationModal
           event={event}
-          onApproveOnce={() => onDismissWithAction("approved_once")}
-          onAdjustRule={() => onDismissWithAction("adjust_rule")}
-          onReject={() => onDismissWithAction("rejected")}
-          onDemote={() => onDismissWithAction("demoted")}
+          onApproveOnce={() => onDismissWithAction({ archetype: "escalation", action: "approve_once" })}
+          onAdjustRule={() => onDismissWithAction({ archetype: "escalation", action: "adjust_rule" })}
+          onReject={() => onDismissWithAction({ archetype: "escalation", action: "rejected" })}
+          onDemote={() => onDismissWithAction({ archetype: "escalation", action: "demoted" })}
         />
       );
 
