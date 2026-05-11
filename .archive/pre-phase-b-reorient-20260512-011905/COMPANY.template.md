@@ -2,7 +2,7 @@
 
 **Slug:** `&lt;slug&gt;`
 **Phase:** `discovery` | `build` | `launch` | `scale` | `dormant`
-**Last reviewed:** &lt;version or revision marker&gt;
+**Last reviewed:** YYYY-MM-DD
 
 ---
 
@@ -24,7 +24,7 @@ Pricing. Expected ACV. Expected gross margin. Distribution channel.
 
 ## North-star metric
 
-The one number that matters right now. Should map to a SQL view in `/dashboards`.
+The one number that matters this quarter. Should map to a SQL view in `/dashboards`.
 
 ## Supporting KPIs
 
@@ -41,24 +41,17 @@ How the venture speaks. Sample phrases. What it never says. Linked content style
 ## Anti-patterns
 
 Things this venture explicitly will NOT do, even if asked. Encode constraints from prior decisions here. Examples:
-- Realtelligence: must not mention RealStyler until RealStyler has publicly launched
+- Realtelligence: must not mention RealStyler before November 2026
 - Corum: no auto-reply, no outbound on director's behalf, no stakeholder graphs beyond explicit consent
 - Kounta: no agent ever touches a customer's bank credentials or Stripe keys
-
-## Autonomy posture (Phase B)
-
-Default autonomy level for this venture (overrides operator default). Per-loop and per-skill overrides set elsewhere.
-
-- **Venture level:** `advise` | `operate` | `steward` (default: `operate` once Phase B is live and the venture has accumulated trust ratchet data; `advise` for new or sensitive ventures)
-- **Hard-advise-only categories for this venture:** list any work that must never be promoted regardless of trust ratchet (e.g. board comms, family-financial matters, legal-sensitive)
 
 ## Loops enabled
 
 Which loops are active for this venture. Configure in `ventures.loops_enabled`.
 
 - [ ] Loop 1 — Strategy / office-hours
-- [ ] Loop 2 — Spec → build → ship (via Claude Code, not Skipper)
-- [ ] Loop 3 — Design (via Claude Code, not Skipper)
+- [ ] Loop 2 — Spec → build → ship (this is via Claude Code, not Skipper)
+- [ ] Loop 3 — Design (this is via Claude Code, not Skipper)
 - [ ] Loop 4 — Content
 - [ ] Loop 5 — Sales / outbound
 - [ ] Loop 6 — Support triage
@@ -71,20 +64,9 @@ Which loops are active for this venture. Configure in `ventures.loops_enabled`.
 
 If Loop 9 is enabled — list of competitor URLs, X handles, ProductHunt categories, subreddits to scan weekly. Stored in `ventures.intel_sources` jsonb.
 
-## Connections (Phase B — via `getConnection`)
+## Current sprint focus
 
-Per-provider service-account credentials this venture uses. Configured in `/ventures/[slug]/settings/connections`. Never read directly — always via `getConnection({ ventureId, provider })`.
-
-- [ ] Stripe
-- [ ] Resend
-- [ ] Vercel
-- [ ] GitHub
-- [ ] Inbound mail (Phase B.6)
-- [ ] Other (specify)
-
-## Current focus
-
-Where attention is going right now. Updated when priorities shift.
+Where attention is going this week. Updated Sundays.
 
 ## Recent decisions
 
