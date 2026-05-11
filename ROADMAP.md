@@ -43,6 +43,22 @@ Phase A HANDOFFs archived under `.archive/handoffs/`. Experience-layer phase HAN
 
 ## Phase B — Autonomy + modal foundation (IN PROGRESS)
 
+### Sprint B.4.5 — Modal→action bridge + Phase B test backfill (SHIPPED)
+
+**Shipped 2026-05-12.** tsc clean, 233 tests passing, 0 ESLint errors.
+
+- Migration 0015: `actions.via_modal`, `modal_events.payload`, `deferred_actions` table applied to production.
+- Gateway writes a `deferred_actions` row on every gated call (Decision, Escalation paths); `modal_events.payload` carries archetype-specific context.
+- `lib/modals/types.ts`: `ModalAction` discriminated union — 8 archetype variants, compile-time safety, no `any`.
+- `lib/modals/apply-action.ts`: server action — validates archetype↔action, dispatches to handler, writes modal_events telemetry.
+- 8 archetype handlers in `lib/modals/handlers/`: Decision and Escalation write eval_runs + update deferred_actions; Promotion inserts autonomy_levels or sets retry_at+7d; Brief/Insight/Alert/Completion/Question are telemetry-only.
+- `ModalQueue.tsx` wired: button taps now call `applyModalAction` with typed `ModalAction` objects (optimistic dismiss).
+- Deferred-replay cron at `*/5 * * * *`: replays approved rows, re-surfaces deferred Promotion rows at +7d.
+- Test backfill: 30 new tests across ratchet (10), portfolio-audit (9), resend-inbound (13). Total: 233.
+
+**Outstanding for Phase B close:** real tool-call replay implementations in `lib/modals/replay.ts` (stub handlers remain; Phase C).
+
+
 Seven sprints. Each can be stopped at and the prior work still ships value, but the full set is required for the productise call. Phase B is the work that converts SoloDesk from "substrate that captures everything" to "OS for portfolio operators with calm-first autonomy."
 
 ### Sprint B.1 — Autonomy control plane
