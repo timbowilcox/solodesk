@@ -1,6 +1,5 @@
 # Sprint 11 — Command bar + Loop 8 reactive
 
-**Date:** 2026-05-07
 **Repo:** solodesk
 **Phase:** Experience layer (5 of 5 — final)
 **Spec:** `/.claude/sprints/sprint-11-command-loop8-reactive.md`
