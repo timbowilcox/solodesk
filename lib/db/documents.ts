@@ -40,8 +40,10 @@ export type RiskContent = {
 };
 export type AgentNoteContent = {
   question: string;
-  decision: string;
+  assumption: string;  // LLM's narrative of what it decided on its own; read-only for operator
+  decision: string;    // operator's explicit response; empty until acted on
   alternatives?: string;
+  defer_count?: number; // incremented each time operator defers
 };
 
 // --------------------------------------------------------------

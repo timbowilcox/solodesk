@@ -36,11 +36,13 @@ Output contract — return ONLY a JSON object:
   "agent_notes": [
     {
       "question": "Voice / audience ambiguity you resolved.",
-      "decision": "What you chose.",
+      "assumption": "What you chose — your reasoning for that call.",
       "alternatives": "What other readings would have changed the draft."
     }
   ]
 }
+
+Field semantics: 'assumption' is YOUR reasoning — fill it. 'decision' is for the operator to fill after reviewing — NEVER populate it. An agent_note without 'assumption' is dropped.
 
 Anti-patterns: no "I'm excited to" / "thrilled to" / "delighted to". No three-adjective stacks. No question-pretend hooks. No fake numbers. No emoji. No exclamation marks. No mention of being an AI.`;
 
@@ -76,7 +78,7 @@ type AgentJsonShape = {
   };
   agent_notes?: Array<{
     question?: string;
-    decision?: string;
+    assumption?: string;
     alternatives?: string;
   }>;
 };
@@ -181,12 +183,13 @@ export async function runContentWriter(
   // 3. agent_notes if present
   if (Array.isArray(parsed.agent_notes)) {
     for (const note of parsed.agent_notes) {
-      if (!note.question || !note.decision) continue;
+      if (!note.question || !note.assumption) continue;
       sections.push({
         kind: "agent_note",
         content: {
           question: note.question.trim(),
-          decision: note.decision.trim(),
+          assumption: note.assumption.trim(),
+          decision: "",
           ...(note.alternatives ? { alternatives: note.alternatives.trim() } : {}),
         },
       });

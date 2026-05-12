@@ -40,6 +40,8 @@ export type SectionProps = {
   section: SectionRow;
   editable: boolean;
   comments?: CommentRow[];
+  ventureSlug?: string;
+  documentId?: string;
 };
 
 const STATUS_BADGE: Partial<Record<SectionStatus, { label: string; cls: string }>> = {
@@ -51,7 +53,7 @@ const STATUS_BADGE: Partial<Record<SectionStatus, { label: string; cls: string }
   dismissed: { label: "DISMISSED", cls: "text-ink-faint" },
 };
 
-export function Section({ section, editable, comments = [] }: SectionProps) {
+export function Section({ section, editable, comments = [], ventureSlug, documentId }: SectionProps) {
   const label = KIND_LABEL[section.kind] ?? section.kind.toUpperCase();
   const badge = STATUS_BADGE[section.status];
   const visibleComments = comments.filter((c) => c.section_id === section.id);
@@ -78,7 +80,7 @@ export function Section({ section, editable, comments = [] }: SectionProps) {
         )}
       </div>
       <div className="min-w-0 space-y-4">
-        <SectionBody section={section} editable={editable} />
+        <SectionBody section={section} editable={editable} ventureSlug={ventureSlug} documentId={documentId} />
         {visibleComments.length > 0 && (
           <div className="space-y-3 pt-2">
             {visibleComments.map((c) => (
@@ -91,7 +93,7 @@ export function Section({ section, editable, comments = [] }: SectionProps) {
   );
 }
 
-function SectionBody({ section, editable }: SectionProps) {
+function SectionBody({ section, editable, ventureSlug, documentId }: SectionProps) {
   switch (section.kind) {
     case "prose":
       return <ProseSection section={section} editable={editable} />;
@@ -106,7 +108,14 @@ function SectionBody({ section, editable }: SectionProps) {
     case "risk":
       return <RiskSection section={section} editable={editable} />;
     case "agent_note":
-      return <AgentNoteSection section={section} editable={editable} />;
+      return (
+        <AgentNoteSection
+          section={section}
+          editable={editable}
+          ventureSlug={ventureSlug}
+          documentId={documentId}
+        />
+      );
     case "metric_block":
       return <MetricBlockSection section={section} editable={editable} />;
     case "content_block":

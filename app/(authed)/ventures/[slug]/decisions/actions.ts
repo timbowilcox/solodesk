@@ -7,9 +7,13 @@ import { z } from "zod";
 import {
   approveDecisionDocument,
   createDocument,
+  updateSectionContent,
+  setSectionStatus,
   type SectionSeed,
 } from "@/lib/db/documents";
 import { getVentureBySlug } from "@/lib/db/ventures";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/types";
 
 const decisionSchema = z.object({
   title: z.string().trim().min(1).max(160),
@@ -130,4 +134,76 @@ export async function approveDecisionDocumentAction(
   revalidatePath(`/ventures/${slug}/decisions`);
   revalidatePath(`/ventures/${slug}/decisions/${documentId}`);
   redirect(`/ventures/${slug}/decisions/${documentId}?approved=1`);
+}
+
+const resolveSchema = z.object({
+  venture_slug: z.string().trim().min(1),
+  document_id: z.string().uuid(),
+  section_id: z.string().uuid(),
+  action_type: z.enum(["confirm", "revise", "defer"]),
+  decision_text: z.string().trim().max(4_000).optional(),
+});
+
+/**
+ * Resolve an agent_note Section: Confirm, Revise, or Defer.
+ *
+ * Confirm — writes content.decision = content.assumption (operator agrees with
+ *   the agent's call). Flips section status to 'approved'.
+ * Revise  — writes content.decision = operator's own text. Flips to 'approved'.
+ * Defer   — flips section status to 'deferred', increments content.defer_count.
+ *   Document stays in reviewing/draft; the section will re-surface at next briefing.
+ */
+export async function resolveAgentNoteAction(formData: FormData): Promise<void> {
+  const parsed = resolveSchema.safeParse({
+    venture_slug: formData.get("venture_slug"),
+    document_id: formData.get("document_id"),
+    section_id: formData.get("section_id"),
+    action_type: formData.get("action_type"),
+    decision_text: formData.get("decision_text") || undefined,
+  });
+  if (!parsed.success) return;
+  const { venture_slug, document_id, section_id, action_type, decision_text } =
+    parsed.data;
+
+  const venture = await getVentureBySlug(venture_slug);
+  if (!venture) return;
+
+  const supabase = createSupabaseAdminClient();
+
+  // Fetch the section to read current content
+  const { data: sectionRow, error: secError } = await supabase
+    .from("sections")
+    .select("content, status")
+    .eq("id", section_id)
+    .eq("document_id", document_id)
+    .maybeSingle();
+  if (secError || !sectionRow) return;
+
+  const content = (sectionRow.content ?? {}) as Record<string, unknown>;
+
+  if (action_type === "confirm") {
+    const assumption =
+      typeof content.assumption === "string" ? content.assumption : "";
+    await updateSectionContent({
+      sectionId: section_id,
+      content: { ...content, decision: assumption } as Json,
+    });
+    await setSectionStatus({ sectionId: section_id, status: "approved" });
+  } else if (action_type === "revise" && decision_text) {
+    await updateSectionContent({
+      sectionId: section_id,
+      content: { ...content, decision: decision_text } as Json,
+    });
+    await setSectionStatus({ sectionId: section_id, status: "approved" });
+  } else if (action_type === "defer") {
+    const deferCount =
+      typeof content.defer_count === "number" ? content.defer_count + 1 : 1;
+    await updateSectionContent({
+      sectionId: section_id,
+      content: { ...content, defer_count: deferCount } as Json,
+    });
+    await setSectionStatus({ sectionId: section_id, status: "deferred" });
+  }
+
+  revalidatePath(`/ventures/${venture_slug}/decisions/${document_id}`);
 }

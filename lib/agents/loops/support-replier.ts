@@ -33,11 +33,13 @@ Output contract — return ONLY a JSON object:
   "agent_notes": [
     {
       "question": "Ambiguity you resolved.",
-      "decision": "What you assumed.",
+      "assumption": "What you assumed — your reasoning for that call.",
       "alternatives": "What other readings would have changed the draft."
     }
   ]
 }
+
+Field semantics: 'assumption' is YOUR reasoning — fill it. 'decision' is for the operator to fill after reviewing — NEVER populate it. An agent_note without 'assumption' is dropped.
 
 send_when_approved: false means "this draft needs operator changes before sending".
 
@@ -70,7 +72,7 @@ type ReplyJsonShape = {
   };
   agent_notes?: Array<{
     question?: string;
-    decision?: string;
+    assumption?: string;
     alternatives?: string;
   }>;
 };
@@ -178,17 +180,12 @@ export async function runSupportReplier(
   // Append any new agent_notes after the reply
   if (Array.isArray(parsed.agent_notes)) {
     let ord = nextOrd + 1;
-    for (const note of parsed.agent_notes) {
-      if (!note.question || !note.decision) continue;
+    for (const seed of composeAgentNoteSeeds(parsed.agent_notes)) {
       await supabase.from("sections").insert({
         document_id: input.documentId,
         kind: "agent_note",
         ord,
-        content: {
-          question: note.question.trim(),
-          decision: note.decision.trim(),
-          ...(note.alternatives ? { alternatives: note.alternatives.trim() } : {}),
-        } as Json,
+        content: seed.content as Json,
       });
       ord += 1;
     }
@@ -202,3 +199,22 @@ export async function runSupportReplier(
 }
 
 export type SupportSection = SectionRow;
+
+type AgentNoteInput = { question?: string; assumption?: string; alternatives?: string };
+type AgentNoteSeed = { content: { question: string; assumption: string; decision: string; alternatives?: string } };
+
+export function composeAgentNoteSeeds(notes: AgentNoteInput[]): AgentNoteSeed[] {
+  const out: AgentNoteSeed[] = [];
+  for (const note of notes) {
+    if (!note.question || !note.assumption) continue;
+    out.push({
+      content: {
+        question: note.question.trim(),
+        assumption: note.assumption.trim(),
+        decision: "",
+        ...(note.alternatives ? { alternatives: note.alternatives.trim() } : {}),
+      },
+    });
+  }
+  return out;
+}

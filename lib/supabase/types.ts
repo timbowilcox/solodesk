@@ -173,7 +173,8 @@ export type SectionStatus =
   | "approved"
   | "revising"
   | "rejected"
-  | "dismissed";
+  | "dismissed"
+  | "deferred";
 
 export type CommentStatus = "open" | "accepted" | "dismissed" | "replied";
 

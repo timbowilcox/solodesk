@@ -241,6 +241,16 @@ Hard prerequisite for Nov 1 productise gate — **met in code**. Live deploy ver
 
 ---
 
+## Phase B — Autonomy + modal foundation (post experience layer fix sprints)
+
+Fix sprints and substrate hardening between the experience layer and full Phase 3 autonomy work. Each sprint is scoped to a single bug or gap surfaced in live dogfood.
+
+| Sprint | Focus | Status | HANDOFF |
+|--------|-------|--------|---------|
+| B.5 | agent_note enforcement fix — decision/assumption field rename, deferred status, Confirm/Revise/Defer affordance | shipped | `.archive/handoffs/sprint-b5-agent-note-enforcement.md` |
+
+---
+
 ## Phase 3 candidates (post experience layer)
 
 Not gating Nov 1. Considered after the experience layer phase ships and the productise/don't call is made.

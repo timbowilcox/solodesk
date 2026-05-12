@@ -95,6 +95,40 @@ describe("isAgentNoteResolved", () => {
       isAgentNoteResolved(section({ status: "draft", content: "string" as Json })),
     ).toBe(false);
   });
+
+  // Sprint B.5: post-rename shape tests
+  test("agent_note with assumption populated and decision empty is NOT resolved", () => {
+    expect(
+      isAgentNoteResolved(
+        section({
+          status: "draft",
+          content: { question: "Q?", assumption: "Agent chose X.", decision: "" },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  test("agent_note with assumption and decision both populated IS resolved (operator confirmed)", () => {
+    expect(
+      isAgentNoteResolved(
+        section({
+          status: "draft",
+          content: { question: "Q?", assumption: "Agent chose X.", decision: "Agent chose X." },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  test("agent_note with status='deferred' and empty decision is treated as a gate (not resolved)", () => {
+    expect(
+      isAgentNoteResolved(
+        section({
+          status: "deferred",
+          content: { question: "Q?", assumption: "Agent chose X.", decision: "" },
+        }),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("isApprovableDocumentStatus", () => {

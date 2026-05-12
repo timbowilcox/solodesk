@@ -10,11 +10,15 @@ export function Document({
   sections,
   comments = [],
   editable = false,
+  ventureSlug,
+  documentId,
 }: {
   document: DocumentRow;
   sections: SectionRow[];
   comments?: CommentRow[];
   editable?: boolean;
+  ventureSlug?: string;
+  documentId?: string;
 }) {
   return (
     <article className="space-y-8">
@@ -36,6 +40,8 @@ export function Document({
               section={s}
               editable={editable}
               comments={comments}
+              ventureSlug={ventureSlug}
+              documentId={documentId}
             />
           ))
         )}

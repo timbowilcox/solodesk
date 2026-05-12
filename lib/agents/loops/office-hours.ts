@@ -51,11 +51,13 @@ Output contract — return ONLY a JSON object matching this exact shape, no pros
   "agent_notes": [
     {
       "question": "Ambiguity you resolved on your own.",
-      "decision": "What you assumed.",
+      "assumption": "What you assumed — your reasoning for that call.",
       "alternatives": "What other readings would have changed the recommendation."
     }
   ]
 }
+
+Field semantics: 'assumption' is YOUR reasoning — fill it. 'decision' is for the operator to fill after reviewing — NEVER populate it. An agent_note without 'assumption' is dropped.
 
 Anti-patterns:
 - No "feels off" or vague language. Every claim is backed by a memory hit, a venture anti-pattern, or first-principles reasoning made explicit.
@@ -95,7 +97,7 @@ type AgentJsonShape = {
   };
   agent_notes?: Array<{
     question?: string;
-    decision?: string;
+    assumption?: string;
     alternatives?: string;
   }>;
 };
@@ -223,7 +225,7 @@ export async function runOfficeHours(
   };
 }
 
-function composeSections(parsed: AgentJsonShape): SectionSeed[] {
+export function composeSections(parsed: AgentJsonShape): SectionSeed[] {
   const sections: SectionSeed[] = [];
   if (parsed.context && parsed.context.trim()) {
     sections.push({ kind: "prose", content: { text: parsed.context.trim() } });
@@ -269,12 +271,13 @@ function composeSections(parsed: AgentJsonShape): SectionSeed[] {
   }
   if (Array.isArray(parsed.agent_notes)) {
     for (const note of parsed.agent_notes) {
-      if (!note.question || !note.decision) continue;
+      if (!note.question || !note.assumption) continue;
       sections.push({
         kind: "agent_note",
         content: {
           question: note.question.trim(),
-          decision: note.decision.trim(),
+          assumption: note.assumption.trim(),
+          decision: "",
           ...(note.alternatives ? { alternatives: note.alternatives.trim() } : {}),
         },
       });

@@ -176,11 +176,12 @@ export async function runSupportTriage(
     kind: "agent_note",
     content: {
       question: `Classification: ${classification} · urgency: ${urgency} · needs reply: ${needsReply ? "yes" : "no"}`,
-      decision: parsed.reasoning ?? "(no reasoning provided)",
+      assumption: parsed.reasoning ?? "(no reasoning provided)",
+      decision: "",
       alternatives:
         parsed.ambiguities && parsed.ambiguities.length > 0
           ? parsed.ambiguities.join(" · ")
-          : "",
+          : undefined,
     },
   });
 

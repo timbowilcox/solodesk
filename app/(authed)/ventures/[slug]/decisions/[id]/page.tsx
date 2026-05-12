@@ -5,6 +5,7 @@ import { Document } from "@/components/document/document";
 import {
   getDocumentWithSections,
   isApprovableDocumentStatus,
+  findUnresolvedAgentNotes,
   listCommentsForSections,
 } from "@/lib/db/documents";
 import { getVentureBySlug } from "@/lib/db/ventures";
@@ -83,6 +84,9 @@ export default async function DecisionDetailPage({
   // is independent of document.status — it reads section state — so lifting
   // this UI gate does not weaken the bright line.
   const isApprovable = isApprovableDocumentStatus(ctx.document.status);
+  const unresolvedCount = isApprovable
+    ? findUnresolvedAgentNotes(ctx.sections).length
+    : 0;
 
   return (
     <div className="space-y-10">
@@ -124,7 +128,9 @@ export default async function DecisionDetailPage({
         document={ctx.document}
         sections={ctx.sections}
         comments={comments}
-        editable={false}
+        editable={isApprovable}
+        ventureSlug={slug}
+        documentId={id}
       />
 
       <footer className="space-y-4 border-t border-rule pt-6">
@@ -168,11 +174,24 @@ export default async function DecisionDetailPage({
           >
             <input type="hidden" name="venture_slug" value={slug} />
             <input type="hidden" name="document_id" value={ctx.document.id} />
+            {unresolvedCount > 0 && (
+              <p className="text-sm text-caution">
+                {unresolvedCount} elicitation{unresolvedCount === 1 ? "" : "s"} to resolve first
+              </p>
+            )}
             <button
               type="submit"
-              className="bg-ink-strong px-4 py-2 text-base font-medium text-paper-card transition-opacity duration-[80ms] hover:opacity-85 active:opacity-70"
+              disabled={unresolvedCount > 0}
+              title={
+                unresolvedCount > 0
+                  ? `Resolve ${unresolvedCount} agent note${unresolvedCount === 1 ? "" : "s"} before approving`
+                  : undefined
+              }
+              className="bg-ink-strong px-4 py-2 text-base font-medium text-paper-card transition-opacity duration-[80ms] hover:opacity-85 active:opacity-70 disabled:cursor-not-allowed disabled:opacity-30"
             >
-              Approve decision
+              {unresolvedCount > 0
+                ? `Approve (${unresolvedCount} to resolve)`
+                : "Approve decision"}
             </button>
           </form>
         )}
