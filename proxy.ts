@@ -5,7 +5,7 @@ import { hostKind } from "@/lib/host";
 import { createSupabaseMiddlewareClient } from "@/lib/supabase/middleware";
 
 const APP_PUBLIC_PATHS = ["/login", "/auth"];
-const APP_PUBLIC_API_PREFIXES = ["/api/webhooks", "/api/cron"];
+const APP_PUBLIC_API_PREFIXES = ["/api/webhooks", "/api/cron", "/api/_test"];
 // Landing host serves only `/` (waitlist signup) and `/api/waitlist`.
 // `/` rewrites internally to `/welcome` because Sprint 8 needs `/` to
 // mean the Bridge on the app host. The internal `/welcome` slug is never
