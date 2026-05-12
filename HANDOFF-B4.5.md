@@ -136,6 +136,27 @@ Extends `deferred_actions` status CHECK (`'executing'`, `'executed'` added) and 
 
 ---
 
+## Live verification — B.4.6 replay dispatcher (2026-05-12)
+
+Verified against production Supabase on the `phase-b-overnight` preview deploy.
+All three paths tested via `/api/test/verify-replay` (temp route, deleted before merge).
+
+| Case | deferred_actions.id | status | error | actions.id |
+|---|---|---|---|---|
+| `failure` (send_email stub) | `1e7e1c33-9f16-4f6c-80e2-c873168191c8` | `failed` | `send_email replay not yet implemented` | — |
+| `tool_not_found` | `2fb10539-d697-4156-ac96-b3dbe256216b` | `failed` | `tool_not_found` | — |
+| `happy` (invoke_loop) | `29587746-785c-49fc-89c6-83b45f03e12e` | `executed` | null | `221c8776-533f-4ab2-82bd-97fb451e269f` |
+
+Happy path proof:
+- `actions` row `221c8776`: `via_modal=true`, `deferred_action_id=29587746`, `tool=invoke_loop`
+- `loop_runs` row `8a048097`: `loop_name=01-strategy`, `status=succeeded`, tokens_in=1030 tokens_out=124, duration_ms=4788
+- `documents` row `723bab12`: title="B.4.6 Verify", type=decision, status=reviewing
+- Idempotency: second call returned `"row not in approved state — skipped"` on all three cases ✓
+
+**Verdict: PASS.** The replay dispatcher is fully wired end-to-end against real Supabase + Anthropic.
+
+---
+
 ## Operator verification
 
 Two verification scripts. Run after pulling `phase-b-overnight`.
