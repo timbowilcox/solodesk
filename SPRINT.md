@@ -1,104 +1,133 @@
-# Sprint 11 — Command bar + Loop 8 reactive
+# Sprint B.5 — agent_note enforcement fix (decision/assumption field rename)
 
-**Date:** 2026-05-07
 **Repo:** solodesk
-**Phase:** Experience layer (5 of 5 — final)
-**Spec:** `/.claude/sprints/sprint-11-command-loop8-reactive.md`
-**Estimated build sessions:** 2-3
+**Phase:** B (autonomy + modal foundation), post-bridge fix sprint
+**Spec authority:** CLAUDE.md anti-pattern (*"No Document flips to `approved` while it has unresolved `agent_note` Sections"*), `.archive/handoffs/agent-note-enforcement-diagnosis.md`
+**Estimated build sessions:** 1
 
 ## Scope
 
-Two surfaces that pull the phase together:
+Live dogfood on production surfaced a substrate bug in the autonomy contract: Loop 1 office-hours and Loop 6 support-replier produce Documents whose `agent_note` Sections silently pass the resolution check at approval time, letting operators approve through without confirming the agent's assumptions. The CLAUDE.md anti-pattern reads:
 
-1. **Command bar (⌘K)** — persistent overlay accessible from any authed page. Operator types a query; router parses it, dispatches to a handler (curate Day, single-venture synthesizer, decisions search, ad-hoc Loop 8, generic Loop 1). Streaming response renders inline; a Watch entry records the query on completion. Membership scoping enforced at the routing layer (router refuses queries about ventures the operator can't see).
+> *No Document flips to `approved` while it has unresolved `agent_note` Sections. Every elicitation must be confirmed, revised, or explicitly deferred — never silently approved through.*
 
-2. **Loop 8 reactive** — replaces the daily-digest cron with an event-driven Loop. Three triggers:
-   - **Webhook** — Stripe event types (`invoice.paid`, `customer.subscription.deleted`, `charge.failed`) trigger evaluation
-   - **Threshold** — a daily cron compares latest metric to trailing 7-day window; fires if outside ±2 stddev
-   - **Manual** — command bar query "Why did Kounta MRR drop?" triggers an ad-hoc run with that context
+The diagnosis (`.archive/handoffs/agent-note-enforcement-diagnosis.md`) identified the root cause: the field `content.decision` carries two conflicting meanings depending on which loop wrote the Section.
 
-Loop 8 produces a Document with typed Sections (Context, Recommendation, Evidence, Risk, Kill criteria) using the streaming substrate from Sprint 10.
+| Loop | `content.decision` semantics | Written by |
+|---|---|---|
+| Loop 1 (streaming runner) | Operator's response — empty until they fill it | Operator |
+| Loop 1 (office-hours generator) | LLM's assumption that resolved the ambiguity | LLM at generation time |
+| Loop 6 (support-replier) | LLM's assumption | LLM at generation time |
+
+`isAgentNoteResolved` checks `content.decision` non-empty as the resolution signal. For office-hours and support-replier generated Sections, the field is pre-filled by the LLM, so the gate always passes regardless of operator action. The enforcement is intact in code; it's defeated by the field-naming collision.
+
+This sprint splits the two meanings into two named fields:
+
+- `content.assumption` — the LLM's narrative of what it decided on its own. Pre-filled at generation time. Read-only context for the operator.
+- `content.decision` — the operator's explicit response. Empty by default. Required non-empty for the Section to be resolved.
+
+UI gains a per-agent_note affordance (Confirm / Revise / Defer) that writes `content.decision`. Operator must act on each agent_note before bulk-approve becomes available.
 
 **Substitutions and deviations from spec:**
 
-- **Migration number bump.** Spec calls for `0009_anomaly_dedup.sql`; that slot is taken (`bridge_aggregation`). Sprint 11 uses `0012_anomaly_fingerprints.sql`.
-- **'Portfolio' ventureId sentinel deferred.** The spec mentions a portfolio sentinel for cross-venture queries. The substrate change for `buildAgentPrompt` to accept it is out of scope for Sprint 11 — instead, cross-venture queries iterate over visible ventures and synthesise client-side. A subsequent phase introduces the proper portfolio scope.
-- **Stripe webhook simulator test deferred to operator deploy verification.** Live webhook test requires real Stripe credentials; substrate is unit-tested with synthetic payloads. Documented in HANDOFF, mirroring Sprint 10's pattern.
-- **Loop 8 daily-digest cron not removed yet.** The existing `daily-digest` cron at `app/api/cron/daily-digest` is left in place for the duration of this sprint to avoid breaking the live deployment. Removal happens in the post-Sprint-11 deploy verification once reactive Loop 8 is proven in production.
-- **Command bar handler set is intentionally small in v1.** `curate-day`, `decisions-search`, `venture-synthesise`, `loop8-investigate`. The spec mentions "Draft a [function] [artifact]"; that's a Loop 1 / Loop 4 invocation surface that piggybacks on the existing Loop 1 conversation route — `/strategy` for strategy questions remains the primary entry. Adding a "Draft a content piece" command-bar handler is a polish enhancement.
-- **Phosphor regular** continues. Command bar uses `MagnifyingGlass` icon.
+- **No migration.** `content` is jsonb; field rename is a content-shape change, no schema change. Existing Documents in production with the old shape (LLM's assumption sitting in `content.decision`) are migrated by a one-off backfill that copies `decision` → `assumption` and clears `decision` for any Section where the Document is still in `draft` or `reviewing` status. Already-approved Documents are left alone (their approvals are historical record; rewriting them would muddy the audit trail).
+- **Confirm / Revise / Defer affordance — Confirm is the default action.** The operator can resolve an agent_note in one tap by selecting Confirm, which writes `content.decision = content.assumption` (signalling "I agree with the agent's call"). Revise opens a text input for the operator's own decision. Defer pushes a Question-modal-like deferred state — sets the agent_note's `status='deferred'` and writes a follow-up reminder.
+- **Bulk-approve preserved but gated.** The Approve decision button remains a single click, but it is disabled in the UI and refused by the server action while any agent_note in the Document is unresolved. UI shows a count: "Approve (3 elicitations to resolve first)".
 
 ## Acceptance criteria
 
-### Command bar
+### Loop-side rename — office-hours
 
-- [ ] `⌘K` (Mac) or `Ctrl+K` (Win/Linux) opens the command bar from any authed route
-- [ ] `Escape` dismisses the overlay
-- [ ] Recent queries (last 5 stored client-side) and a static list of suggested queries visible on open
-- [ ] Operator types a query, hits Enter, sees a streaming response
-- [ ] Common queries route correctly:
-  - "Show me everything that needs my attention" → curated Day items inline
-  - "What did I decide about <topic>" → recall over decisions corpus
-  - "What's happening with <venture>" → venture state synthesis
-  - "Why did <venture> <metric> <direction>" → ad-hoc Loop 8 invocation
-- [ ] Member scoping enforced — non-admin querying about an unassigned venture gets a graceful "no access" response
-- [ ] Watch entry written on query completion (event: `command_bar.query`)
+- [ ] `lib/agents/loops/office-hours.ts` system prompt updated: the agent_notes array schema documents `question`, `assumption`, `alternatives` (no `decision` field). The prompt explicitly tells the LLM: *"`assumption` is your reasoning, `decision` is for the operator — never fill it."*
+- [ ] `composeSections()` writes `content: { question, assumption: note.assumption.trim(), alternatives: note.alternatives?.trim() ?? undefined, decision: "" }`. The empty-string `decision` initialisation is explicit and load-bearing.
+- [ ] The filter `if (!note.question || !note.decision) continue` becomes `if (!note.question || !note.assumption) continue` — notes without an assumption are still dropped, but the gate is now on the LLM's pre-fill, not on the operator's response.
 
-### Loop 8 reactive
+### Loop-side rename — support-replier
 
-- [ ] Migration `0012_anomaly_fingerprints.sql` applies cleanly
-- [ ] `lib/loops/loop-8/dedup.ts` exposes a fingerprint helper + `shouldDedup` check
-- [ ] Stripe webhook handler routes recognised event types into the Loop 8 trigger queue (synthetic payload test)
-- [ ] Threshold cron at `/api/cron/loop8-threshold` runs, evaluates metric_snapshots windowed stats, fires Loop 8 on ±2 stddev breaches
-- [ ] Manual trigger (from command bar handler) invokes Loop 8 with operator-supplied context
-- [ ] Loop 8 produces a Document with Section kinds in (`prose`, `recommendation`, `evidence`, `risk`, `kill_criteria`) — no new kinds invented
-- [ ] Deduplication: identical fingerprint within 1h does not produce a second Document
-- [ ] Document with high-severity origin lands in The Day automatically (curate.ts already picks up `support_ticket` analogue: a new `anomaly` item kind)
+- [ ] `lib/agents/loops/support-replier.ts` same changes as office-hours. Same prompt language, same composeSections shape, same filter swap.
+
+### Loop-side rename — any other generator that emits agent_notes
+
+- [ ] Grep `git grep -nE 'kind:\s*"agent_note"' lib/agents/` and audit every generator. If any other loop emits agent_notes with pre-filled `decision`, apply the same rename. Document any found in HANDOFF.
+
+### Enforcement — isAgentNoteResolved
+
+- [ ] No change to `isAgentNoteResolved` in `lib/db/documents.ts`. The function is correct — it just needs the input data to follow Loop 1 streaming's convention (empty decision = unresolved). The rename makes every generator follow that convention.
+- [ ] Verify by reading: the function should remain checking `content.decision` non-empty as the resolution signal.
+
+### Backfill — existing in-flight Documents
+
+- [ ] One-off SQL script or migration committed at `supabase/migrations/0017_agent_note_field_rename.sql` (or equivalent) that:
+  - Selects all `sections` where `kind='agent_note'`, `status='draft'`, and the parent Document is in `draft` or `reviewing` status (i.e., not yet approved)
+  - Updates `content = jsonb_set(jsonb_set(content, '{assumption}', content->'decision'), '{decision}', '""')` — moves `decision` value into `assumption`, clears `decision`
+- [ ] Approved Documents (status='approved' or 'active') are NOT touched. Their historical state stays.
+- [ ] Test the backfill on a Supabase snapshot before applying to production. Document the count of rows affected in HANDOFF.
+
+### UI — per-agent_note affordance
+
+- [ ] The agent_note section component in `components/document/sections/` (or wherever) renders the `assumption` field as read-only context ("Agent assumed: …") with appropriate visual treatment (lighter weight, the existing `ink-mute` token).
+- [ ] Below the assumption, three action affordances: **Confirm** (default focus), **Revise**, **Defer**.
+  - Confirm — one tap, writes `content.decision = content.assumption` via a server action. Section flips to `status='approved'`.
+  - Revise — opens an inline textarea, operator types their own decision. On submit, writes `content.decision = <operator text>` and flips status to approved.
+  - Defer — writes `status='deferred'` on the section. A Question-style follow-up is scheduled. Document cannot approve while any section is deferred; deferred sections re-surface at next briefing per the existing Question archetype pattern.
+- [ ] Section visually shows resolution state: unresolved (default styling), Confirmed (subtle tick), Revised (subtle pencil), Deferred (subtle clock).
+
+### UI — Approve button gating
+
+- [ ] Approve decision button disabled while any agent_note section in the Document has `content.decision === ""` (or is deferred)
+- [ ] Button label reflects state: "Approve (3 elicitations to resolve first)" with the count of unresolved agent_notes
+- [ ] On hover/focus while disabled, surface tooltip explaining the gate
+- [ ] Server-side `approveDecisionDocument` keeps its existing enforcement check — defence in depth. UI gating prevents the bad request; server check rejects it if somehow bypassed (direct API call, race, etc.)
+
+### Tests
+
+- [ ] `tests/lib/db/documents.test.ts` — new test case: agent_note with `content.assumption='X'` and `content.decision=''` is NOT resolved
+- [ ] `tests/lib/db/documents.test.ts` — new test case: agent_note with `content.assumption='X'` and `content.decision='X'` IS resolved (operator confirmed)
+- [ ] `tests/lib/db/documents.test.ts` — new test case: agent_note with `status='deferred'` is treated as a gate (Document cannot approve)
+- [ ] `tests/lib/agents/loops/office-hours.test.ts` — new test verifying composeSections writes the new shape (assumption populated, decision empty) for a synthetic LLM payload
+- [ ] `tests/lib/agents/loops/support-replier.test.ts` — same test for support-replier
+- [ ] If component tests exist for the agent_note section UI, add cases for the three action affordances. If component tests don't exist yet (per the cancel-fix HANDOFF's note about JSDom), defer with explicit gap disclosure in HANDOFF.
 
 ## Definition of done
 
-- [ ] All AC checked with proof (live webhook + live cron operator-verified post-deploy)
-- [ ] HANDOFF.md (Sprint 11) committed and archived
-- [ ] **Phase HANDOFF** at `.archive/handoffs/experience-layer-phase-handoff.md` summarising the entire phase, including operator-load assertion (deferred to first-week-after-deploy measurement)
-- [ ] ROADMAP.md updated: Sprints 7-11 marked complete, phase entry marked complete
-- [ ] All work committed with conventional-commit messages
+- [ ] All AC checked with proof
+- [ ] HANDOFF.md (Sprint B.5) committed
+- [ ] ROADMAP.md updated — B.5 marked shipped, note added to Phase B section
+- [ ] All work committed with conventional-commit messages on a feature branch (suggest `b5-agent-note-fix`)
 - [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all clean
-- [ ] Adversarial check questions answered
+- [ ] Backfill executed on production (with row count noted) before merge
+- [ ] **Operator-verified DOD:** re-run the dogfood scenario that surfaced this bug — fire a Loop 1 office-hours invocation on Kounta, watch Approve be disabled, resolve each agent_note via Confirm or Revise, watch Approve enable, complete the approval, verify `decisions` row writes with `status='active'` AND every agent_note section has `content.decision` non-empty
 
 ## Quality rubric
 
 | Criterion | What to check |
 |-----------|---------------|
-| Bright line: cross-venture leakage | Command bar router looks up visible ventures via `listVisibleVentures` and refuses queries about anything else. Verified by reading the router + a unit test |
-| Bright line: every loop through `buildAgentPrompt` | Reactive Loop 8 calls `runStreamingLoop` (which calls `buildAgentPrompt`). Webhook handler, threshold cron, manual all converge on the same path |
-| Bright line: typed Sections | Loop 8 skill prompt emits Section kinds from the existing enum |
-| Webhook idempotency | Stripe webhook events use the existing `events.hash` unique index — duplicates dropped at insert. Loop 8 also dedups via `anomaly_fingerprints` |
-| Deduplication | `shouldDedup({ ventureId, fingerprint, withinHours })` returns true if a recent fingerprint exists. Unit test verifies |
-| Command bar latency | First token within 2s of Enter (operator-verified post-deploy; substrate has no synchronous DB calls before the SSE stream opens) |
-| TypeScript | Query routing types and trigger types are discriminated unions. No `any` |
-| Member scoping | Router rejects unassigned-venture queries before invoking any Loop. Verified in router test |
+| Bright line: agent_note enforcement is real | After this sprint, no Document with an unresolved agent_note can flip to approved. Verified by: (a) operator-verified DOD above, (b) server-side test that calls approveDecisionDocument on a Document with an unresolved agent_note and confirms rejection |
+| Bright line: no silent field collisions | Grep test: no file outside `lib/db/documents.ts` reads `content.decision` for the resolution-check purpose. All generators write to `assumption`; only operator action writes to `decision` |
+| Backfill correctness | Snapshot test: synthetic in-flight Document with old-shape agent_note → run backfill → check assumption populated, decision empty. Approved Document with old-shape → run backfill → check untouched |
+| No regression on Loop 1 streaming | Loop 1 streaming agent_notes (the original convention) keep working — text/decision pair, operator fills decision, gate passes when filled |
+| UI affordance discoverability | The three actions (Confirm / Revise / Defer) are visible on every agent_note section. The Approve button's gated state is obvious, not hidden |
+| TypeScript | `AgentNoteContent` is a typed shape with `assumption: string`, `decision: string`, optional `alternatives`, optional `question`. No `any` |
+| Test coverage delta | 5+ new test cases covering the rename, the backfill behaviour, the enforcement, and the loop-side composeSections output |
 
-**Score threshold:** 7/8. Bright lines and member scoping non-negotiable.
+**Score threshold:** 7/7. Bright lines non-negotiable. This sprint exists to make the autonomy contract real — half-measures defeat the purpose.
 
 ## Out of scope
 
-- Voice command bar
-- Cross-venture portfolio recall (the `'portfolio'` sentinel for `buildAgentPrompt`) — deferred
-- ML-based anomaly detection
-- Slack / email notification routing for Loop 8
-- Command bar history search beyond last 5
-- Saved queries / shortcuts
-- Stripe webhook simulator-driven integration test (operator-verified post-deploy)
-- Live reactive Loop 8 production proof — operator-driven on first deploy
-- Removal of the existing `/api/cron/daily-digest` route — kept until reactive Loop 8 is proven live
+- Visual library illustrations for the agent_note section (placeholder treatment is fine — agent_notes are inline section UI, not modal heroes)
+- Migration of *approved* Documents to the new shape (audit trail preservation — leave them alone)
+- Rewriting of the office-hours system prompt beyond the rename (the prompt is large; only the agent_notes section needs editing)
+- The Refine action full flow on Decision modals (still B.4.5 stubbed — separate sprint)
+- Question modal free-text answer routing (same as Refine — separate sprint)
+- Loop 1 streaming runner changes (its convention is the model, no changes needed)
+- Component test infrastructure (JSDom + testing-library) — out of scope; deferred per cancel-fix HANDOFF
 
 ## Adversarial check questions (to be answered in HANDOFF)
 
-- Member uses command bar to ask about an unassigned venture? Expected: "no access" graceful response, not 500
-- Stripe fires 100 webhook events in 1s? Expected: idempotent insert into `events`; Loop 8 dedup yields ≤N Documents (one per fingerprint)
-- Ambiguous command bar query? Expected: router falls back to suggested-queries clarification, no fabricated answer
-- Loop 8 invoked when metric data is missing? Expected: Document acknowledges the missing connection; no fabricated analysis
-- Operator asks about another operator's data? Expected: refused (membership filter is the same; data is venture-scoped, not operator-scoped, so this collapses to the venture-scope check)
-- Command bar in offline mode? Expected: clear error state on stream failure
-- Old daily-digest cron removed without breaking deps? Expected: deferred to post-deploy; documented
-- Loop 8 deduplication across processes? Expected: dedup table is the source of truth; concurrent webhooks may race but the unique fingerprint constraint resolves to one Document
+- A generator writes an agent_note with both `assumption` and a pre-filled non-empty `decision`? Expected: `isAgentNoteResolved` returns true. The check doesn't distinguish source. This is an anti-pattern at the generator level; the rename + prompt update is the fix. Document this as a discipline gap: any future generator that's added must follow the convention. Add a linter rule or test fixture as a guard.
+- Operator clicks Revise, types decision text, then refreshes the page before saving? Expected: text is lost; section stays unresolved. The Revise flow doesn't have draft persistence — that's Phase C. Document this UX gap.
+- Operator clicks Defer on every agent_note in a Document? Expected: Document stays in `reviewing` status indefinitely. Deferred sections re-surface at next briefing per Question archetype pattern. After N deferrals on the same section, surface an Alert ("This decision has been deferred 4 times — is it stuck?"). Defer the Alert wiring to Phase C; just count deferrals in the section state for now.
+- Backfill races with a generator writing a new agent_note mid-execution? Expected: the backfill is a single transaction; the generator's insert is also single transaction. Worst case is one new agent_note in the old shape that survives the backfill. Document and run a second pass if found.
+- Operator approves a Document, then someone (Phase C teammate, or operator on a different machine) views the Document and tries to take action on an already-approved agent_note? Expected: actions are no-ops on approved sections. Surface a toast: "This section was already resolved when the Document was approved."
+- The system prompt rename causes the LLM to output the old shape (no `assumption` field, sticking `decision` in by habit)? Expected: composeSections's filter (`!note.assumption`) drops the note. The Document loses content but stays consistent. Add a one-off prompt-evaluation test against opus-4-7 with 5 example questions to verify the LLM honours the new schema; if it doesn't, strengthen the prompt or add a renaming pass before composeSections.
+- Pre-existing Documents in production have approved agent_notes with the old shape — what happens on next view? Expected: no rendering change. The component reads `assumption` first, falls back to `decision` for legacy display, so old-shape approved Documents still render correctly. Add the fallback explicitly.
