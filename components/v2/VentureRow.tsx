@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 import type { BridgeTile } from "@/lib/db/bridge";
