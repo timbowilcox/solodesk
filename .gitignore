@@ -53,3 +53,8 @@ Thumbs.db
 # Transient commit-message scratch file used by the harness when commit
 # bodies contain nested heredocs that would otherwise confuse the shell.
 .git-msg.tmp
+
+.vercel
+.env*
+.claude/worktrees/
+.claude/scheduled_tasks.lock
