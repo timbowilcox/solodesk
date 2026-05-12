@@ -58,6 +58,12 @@ export function AppSidebar({ email }: { email: string }) {
         >
           {email}
         </p>
+        <Link
+          href="/v2"
+          className="block text-xs text-ink-mute transition-colors duration-[80ms] hover:text-accent"
+        >
+          Try v2 ↗
+        </Link>
         <form action={signOutAction}>
           <button
             type="submit"
